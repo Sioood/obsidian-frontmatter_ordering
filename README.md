@@ -30,6 +30,7 @@ Order values are **integers** `1`, `2`, `3`, … in the visible scope after a dr
 
 ## Interaction notes
 
+- Bases reorder uses **Pragmatic drag and drop** (HTML5 DnD adapters), not custom pointer tracking.
 - **Table:** drag from the name/title column only. **List/gallery:** whole-item drag (no separate grip).
 - **Link drag** from Bases/Obsidian is suppressed on eligible items; use click/tap to open notes.
 - **Grouped** Bases: reorder within one group only.
@@ -39,6 +40,10 @@ Order values are **integers** `1`, `2`, `3`, … in the visible scope after a dr
 
 - File explorer drag reorder is not implemented yet.
 - DOM selectors may need updates when Obsidian changes Bases markup.
+
+## Third-party libraries
+
+Bases drag-and-drop uses [Pragmatic drag and drop](https://atlassian.design/components/pragmatic-drag-and-drop) ([`@atlaskit/pragmatic-drag-and-drop`](https://github.com/atlassian/pragmatic-drag-and-drop)), licensed under **Apache-2.0**.
 
 ## Development
 

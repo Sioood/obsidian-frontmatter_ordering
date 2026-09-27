@@ -1,8 +1,22 @@
 ## Purpose
 
-Integrates frontmatter-based order with Obsidian Bases so users can drag-and-drop to reorder rows or cards in `.base` views, with order persisted in each note’s frontmatter.
+Integrates frontmatter-based order with Obsidian Bases so users can drag-and-drop to reorder rows or cards in `.base` views, with order persisted in each note’s frontmatter. Reorder interactions MUST be built on **[Pragmatic drag and drop](https://atlassian.design/components/pragmatic-drag-and-drop)** (`@atlaskit/pragmatic-drag-and-drop`), not a bespoke pointer-capture drag engine.
 
 ## ADDED Requirements
+
+### Requirement: Pragmatic drag and drop engine
+
+Bases reorder MUST use Atlassian **Pragmatic drag and drop** (element `draggable` / `dropTargetForElements` adapters and any required optional packages), bundled into the plugin `main.js`. The implementation MUST NOT treat a custom `pointerdown` + `setPointerCapture` gesture controller as the primary reorder mechanism after migration.
+
+#### Scenario: Adapters cleaned up on DOM refresh
+
+- **WHEN** Bases virtualizes or re-renders rows and the MutationObserver re-syncs items
+- **THEN** previous Pragmatic drag and drop registrations are disposed and re-attached without duplicate handlers or leaks
+
+#### Scenario: Drop carries stable file identity
+
+- **WHEN** the user drops a dragged item on a valid target
+- **THEN** the plugin resolves the correct `TFile` from drag data and view internals, not from a stale DOM index
 
 ### Requirement: Bases feature detection
 
@@ -92,7 +106,7 @@ When eligible, the plugin MUST NOT show a separate drag handle. **List** and **g
 
 ### Requirement: Native link drag disabled on reorderable items
 
-While reorder is eligible, the plugin MUST prevent Obsidian’s default **link drag** (and related native HTML drag) from starting on reorderable item chrome, including internal links, so pointer-based reorder is not overridden by URL/link drag behavior.
+While reorder is eligible, the plugin MUST prevent Obsidian’s default **link drag** (and related native HTML drag) from overriding Pragmatic drag and drop reorder on item chrome, including internal links, using PdD-safe patterns and Obsidian-specific guards as needed.
 
 #### Scenario: Link drag blocked on item
 
@@ -106,7 +120,7 @@ While reorder is eligible, the plugin MUST prevent Obsidian’s default **link d
 
 ### Requirement: No conflict with default item activation
 
-Reorder gestures MUST be distinguishable from open-note or link navigation using a **movement threshold** (and on touch, an appropriate long-press or delay). Taps/clicks without a reorder gesture MUST still activate Bases/Obsidian defaults.
+Reorder MUST be distinguishable from open-note or link navigation: taps/clicks that do not complete a Pragmatic drag and drop reorder MUST still activate Bases/Obsidian defaults (table name click opens note; property cells edit inline).
 
 #### Scenario: Tap opens note
 

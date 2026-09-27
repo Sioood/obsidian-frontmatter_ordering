@@ -68,6 +68,17 @@ export function isBasesTableNameColumnTd(td: HTMLElement): boolean {
 	return td.querySelector('a.internal-link') !== null;
 }
 
+export function findTableNameCellInRow(row: HTMLElement): HTMLElement | null {
+	for (const td of Array.from(
+		row.querySelectorAll<HTMLElement>('.bases-td'),
+	)) {
+		if (isBasesTableNameColumnTd(td)) {
+			return td;
+		}
+	}
+	return null;
+}
+
 export function shouldStartTableReorderPointer(
 	evt: PointerEvent,
 	itemEl: HTMLElement,

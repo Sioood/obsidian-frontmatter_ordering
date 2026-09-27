@@ -61,6 +61,18 @@
 - [x] 6.4 `command id=<fill-missing-command-id>` — missing keys filled with integer sequence (not 1000+)
 - [x] 6.5 `dev:errors` / `dev:console` — no uncaught errors during reload and command runs
 
+## 8. Pragmatic drag and drop migration (replaces custom pointer engine in §4.17–4.23)
+
+- [x] 8.1 Add `@atlaskit/pragmatic-drag-and-drop` (+ element adapter; hitbox/auto-scroll only if needed); configure esbuild to bundle; note Apache-2.0 in README
+- [x] 8.2 Add `src/bases/pragmatic-dnd.ts` — shared drag data types, `draggable` / `dropTargetForElements` helpers, `combine` cleanup
+- [x] 8.3 Refactor `reorder-controller.ts` — register/dispose PdD adapters on observer sync; remove primary pointer-capture gesture state machine
+- [x] 8.4 Table: `dragHandle` on name column cells (`findTableNameCellInRow`); property columns not registered as drag handles
+- [x] 8.5 List/gallery: whole-item `draggable`; `monitorForElements` + drop commit; existing `assign` pipeline + `view-internals` file resolution
+- [x] 8.6 Insertion indicator via `resolveDropPlacement` on `onDrag` (reuse `dom-targets` geometry); no transition on marker
+- [x] 8.7 Post-drop click suppression and table selection suppression during drag (parity with §4.21–4.22)
+- [x] 8.8 `npm run build` (production bundle includes PdD); reload in `dev-obsidian` for smoke test
+- [ ] 8.9 Re-run manual **§7** (especially 7.1, 7.2, 7.6 touch) after migration
+
 ## 7. Manual test plan (UI — apply verification)
 
 - [ ] 7.1 Bases **table**: drag from **name/title column** reorders; **no** plugin handle; link drag does not steal gesture; **click name cell opens note**; **click property cell edits inline** without starting reorder; **no false multi-select highlight** except during an active drag; integers match display order after drop (**ASC** and **DESC** per view sort); **virtualized** rows update the correct files

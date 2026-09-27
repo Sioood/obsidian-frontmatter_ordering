@@ -40,6 +40,15 @@ Disabling or uninstalling the plugin MUST leave all frontmatter order values in 
 - **WHEN** the user disables the plugin
 - **THEN** notes retain their `order` (or configured key) values and Bases can still sort by that property using core behavior
 
+### Requirement: Third-party dependency disclosure
+
+If the plugin bundles **Pragmatic drag and drop** (`@atlaskit/pragmatic-drag-and-drop`), `README.md` MUST name the library, link to [Atlassian documentation](https://atlassian.design/components/pragmatic-drag-and-drop), and state its license (Apache-2.0).
+
+#### Scenario: User reads README
+
+- **WHEN** the user opens the plugin README
+- **THEN** they can see that Bases reorder uses Pragmatic drag and drop and where to find upstream docs
+
 ### Requirement: Sample plugin removal
 
 The shipped plugin MUST replace the Obsidian sample plugin behaviors (sample ribbon, sample commands, sample modal) with this plugin’s identity and commands.

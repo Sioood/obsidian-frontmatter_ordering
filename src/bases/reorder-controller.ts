@@ -1,4 +1,7 @@
 import { Notice, type App, type BasesView, type WorkspaceLeaf } from 'obsidian';
+import type { BasesViewConfig } from 'obsidian';
+import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { preventUnhandled } from '@atlaskit/pragmatic-drag-and-drop/prevent-unhandled';
 import type { FrontmatterOrderingSettings } from '../settings';
 import { assignOrderAfterMove } from '../order/assign';
 import {
@@ -10,21 +13,23 @@ import {
 	reorderSortDirectionFromConfig,
 } from './context';
 import {
-	applyLinkDragSuppression,
 	clearLinkDragSuppression,
+	findTableNameCellInRow,
 	itemSelectorForKind,
 	removeLegacyDragHandles,
 	type ResolvedBasesItem,
 	resolveBasesItem,
 	resolveDropPlacement,
-	shouldStartTableReorderPointer,
 	viewKindFromBasesView,
 } from './dom-targets';
+import {
+	isBasesReorderDragData,
+	registerBasesReorderItem,
+} from './pragmatic-dnd';
 import {
 	clearCachedItemFilePath,
 	setCachedItemFilePath,
 } from './view-internals';
-import type { BasesViewConfig } from 'obsidian';
 
 const DEBOUNCE_MS = 160;
 const HINT_CLASS = 'frontmatter-ordering-bases-hint';
@@ -32,8 +37,6 @@ const DRAGGING_CLASS = 'frontmatter-ordering-dragging';
 const INSERT_INDICATOR_CLASS = 'frontmatter-ordering-insert-indicator';
 const REORDER_ACTIVE_CLASS = 'frontmatter-ordering-reorder-active';
 const DRAG_OVERLAY_CLASS = 'frontmatter-ordering-drag-overlay';
-const MOVE_THRESHOLD_PX = 4;
-const LONG_PRESS_MS = 180;
 const CLICK_SUPPRESS_MS = 650;
 
 interface ContainerContext {
@@ -42,15 +45,9 @@ interface ContainerContext {
 	config: BasesViewConfig;
 }
 
-interface ActiveGesture {
+interface ActiveDrag {
 	container: ContainerContext;
 	source: ResolvedBasesItem;
-	pointerId: number;
-	startX: number;
-	startY: number;
-	startedAt: number;
-	dragging: boolean;
-	isTouch: boolean;
 	pendingInsertIndex: number | null;
 	pendingSlot: number | null;
 }
@@ -63,8 +60,10 @@ export class BasesReorderController {
 	private readonly boundContainers = new WeakSet<HTMLElement>();
 	private readonly boundLeafRoots = new WeakSet<HTMLElement>();
 	private readonly lastSyncedViewKey = new WeakMap<HTMLElement, string>();
+	private readonly registrationBags = new WeakMap<HTMLElement, (() => void)[]>();
+	private readonly containerMonitors = new WeakMap<HTMLElement, () => void>();
 	private debounceTimer: number | null = null;
-	private gesture: ActiveGesture | null = null;
+	private activeDrag: ActiveDrag | null = null;
 	private insertIndicatorEl: HTMLElement | null = null;
 	private suppressClickUntil = 0;
 	private clickSuppressBlockersActive = false;
@@ -89,11 +88,12 @@ export class BasesReorderController {
 		this.detachTableDragGuards();
 		this.removeDragOverlay();
 		this.deactivateReorderActiveContainer();
-		this.endGesture();
+		this.endActiveDrag();
 		for (const leaf of this.app.workspace.getLeavesOfType('bases')) {
 			const ctx = getBasesContextFromLeaf(leaf);
 			if (ctx) {
 				this.containerObservers.get(ctx.containerEl)?.disconnect();
+				this.disposeContainerDnd(ctx.containerEl);
 				removeLegacyDragHandles(ctx.containerEl);
 				this.clearItemsInContainer(ctx);
 			}
@@ -149,7 +149,6 @@ export class BasesReorderController {
 		return `${ctx.basesView.type}:${ctx.config.name}`;
 	}
 
-	/** Re-bind items immediately after switching Bases view tabs (before debounced attach). */
 	private ensureViewSynced(ctx: ContainerContext): void {
 		const key = this.viewSyncKey(ctx);
 		if (this.lastSyncedViewKey.get(ctx.containerEl) === key) {
@@ -175,13 +174,6 @@ export class BasesReorderController {
 		);
 	}
 
-	private refreshGestureContext(gesture: ActiveGesture): void {
-		const fresh = this.contextForContainer(gesture.container.containerEl);
-		if (fresh) {
-			gesture.container = fresh;
-		}
-	}
-
 	private contextForContainer(
 		containerEl: HTMLElement,
 	): ContainerContext | null {
@@ -198,6 +190,32 @@ export class BasesReorderController {
 		return null;
 	}
 
+	private registrationBag(containerEl: HTMLElement): (() => void)[] {
+		let bag = this.registrationBags.get(containerEl);
+		if (!bag) {
+			bag = [];
+			this.registrationBags.set(containerEl, bag);
+		}
+		return bag;
+	}
+
+	private disposeItemRegistrations(containerEl: HTMLElement): void {
+		const bag = this.registrationBags.get(containerEl);
+		if (!bag) {
+			return;
+		}
+		for (const dispose of bag) {
+			dispose();
+		}
+		bag.length = 0;
+	}
+
+	private disposeContainerDnd(containerEl: HTMLElement): void {
+		this.disposeItemRegistrations(containerEl);
+		this.containerMonitors.get(containerEl)?.();
+		this.containerMonitors.delete(containerEl);
+	}
+
 	private bindContainer(containerEl: HTMLElement): void {
 		if (this.boundContainers.has(containerEl)) {
 			return;
@@ -205,15 +223,58 @@ export class BasesReorderController {
 		this.boundContainers.add(containerEl);
 
 		containerEl.addEventListener(
-			'pointerdown',
-			(evt) => this.onContainerPointerDown(containerEl, evt),
-			{ capture: true },
-		);
-		containerEl.addEventListener(
 			'dragstart',
 			(evt) => this.onContainerDragStart(containerEl, evt),
 			{ capture: true },
 		);
+
+		const monitorCleanup = monitorForElements({
+			canMonitor: ({ source }) => isBasesReorderDragData(source.data),
+			onDragStart: ({ source }) => {
+				const ctx = this.contextForContainer(containerEl);
+				if (!ctx) {
+					return;
+				}
+				this.ensureViewSynced(ctx);
+				const resolved = resolveBasesItem(
+					ctx.containerEl,
+					ctx.basesView,
+					source.element,
+				);
+				if (!resolved) {
+					return;
+				}
+				this.activeDrag = {
+					container: ctx,
+					source: resolved,
+					pendingInsertIndex: null,
+					pendingSlot: null,
+				};
+				this.extendClickSuppression();
+				preventUnhandled.start();
+				this.setReorderActive(ctx.containerEl, true);
+				resolved.itemEl.classList.add(DRAGGING_CLASS);
+				this.clearDomSelection();
+				if (viewKindFromBasesView(ctx.basesView) === 'table') {
+					this.attachTableDragGuards(ctx.containerEl);
+				}
+			},
+			onDrag: ({ location }) => {
+				if (!this.activeDrag) {
+					return;
+				}
+				const { clientX, clientY } = location.current.input;
+				this.scheduleInsertIndicatorUpdate(
+					this.activeDrag,
+					clientX,
+					clientY,
+				);
+			},
+			onDrop: ({ location }) => {
+				void this.commitActiveDrag(location.current.input.clientX, location.current.input.clientY);
+			},
+		});
+		this.containerMonitors.set(containerEl, monitorCleanup);
 	}
 
 	private onContainerDragStart(
@@ -227,59 +288,66 @@ export class BasesReorderController {
 		if (!isSortEligibleForReorder(ctx.config, this.getSettings())) {
 			return;
 		}
-		if (!(evt.target instanceof HTMLElement)) {
+		const target = evt.target;
+		if (!(target instanceof HTMLElement)) {
 			return;
 		}
-		const kind = viewKindFromBasesView(ctx.basesView);
-		const itemEl = evt.target.closest<HTMLElement>(
-			itemSelectorForKind(kind),
-		);
-		if (!itemEl || !ctx.containerEl.contains(itemEl)) {
-			return;
+		if (target.closest('a.internal-link') && !target.closest('.frontmatter-ordering-item')) {
+			evt.preventDefault();
+			evt.stopPropagation();
 		}
-		evt.preventDefault();
-		evt.stopPropagation();
 	}
 
-	private onContainerPointerDown(
-		containerEl: HTMLElement,
-		evt: PointerEvent,
-	): void {
-		const ctx = this.contextForContainer(containerEl);
-		if (!ctx) {
+	private async commitActiveDrag(
+		clientX: number,
+		clientY: number,
+	): Promise<void> {
+		const drag = this.activeDrag;
+		if (!drag) {
 			return;
 		}
-		this.ensureViewSynced(ctx);
-		if (evt.button !== 0 && evt.pointerType === 'mouse') {
-			return;
-		}
-		if (!isSortEligibleForReorder(ctx.config, this.getSettings())) {
-			return;
-		}
-		if (!(evt.target instanceof HTMLElement)) {
-			return;
-		}
-		const kind = viewKindFromBasesView(ctx.basesView);
-		const itemEl = evt.target.closest<HTMLElement>(
-			itemSelectorForKind(kind),
+		const containerEl = drag.container.containerEl;
+		const placement = resolveDropPlacement(
+			containerEl,
+			drag.container.basesView,
+			drag.source,
+			clientX,
+			clientY,
+			drag.pendingSlot,
 		);
-		if (!itemEl || !ctx.containerEl.contains(itemEl)) {
-			return;
+		const toIndex = placement?.insertIndex ?? drag.pendingInsertIndex;
+		if (toIndex !== null && toIndex !== drag.source.index) {
+			await this.handleDrop(drag, toIndex);
 		}
-		const source = resolveBasesItem(ctx.containerEl, ctx.basesView, itemEl);
-		if (!source) {
-			return;
+		this.endActiveDrag();
+		this.extendClickSuppression();
+		this.scheduleClickSwallowOnContainer(containerEl);
+	}
+
+	private endActiveDrag(): void {
+		const drag = this.activeDrag;
+		if (drag) {
+			drag.source.itemEl.classList.remove(DRAGGING_CLASS);
+			if (viewKindFromBasesView(drag.container.basesView) === 'table') {
+				this.clearBasesTableRowSelection(drag.container.containerEl);
+				this.restoreBasesTableSelectionChrome(
+					drag.container.containerEl,
+				);
+			}
+			this.setReorderActive(drag.container.containerEl, false);
+		} else {
+			this.deactivateReorderActiveContainer();
 		}
-		if (
-			kind === 'table' &&
-			!shouldStartTableReorderPointer(evt, itemEl)
-		) {
-			return;
+		this.clearDomSelection();
+		this.pendingIndicatorCoords = null;
+		if (this.indicatorRaf !== 0) {
+			window.cancelAnimationFrame(this.indicatorRaf);
+			this.indicatorRaf = 0;
 		}
-		if (kind === 'table') {
-			evt.stopImmediatePropagation();
-		}
-		this.beginGesture(ctx, source, evt);
+		this.hideInsertIndicator();
+		this.detachTableDragGuards();
+		preventUnhandled.stop();
+		this.activeDrag = null;
 	}
 
 	private watchContainer(containerEl: HTMLElement): void {
@@ -287,7 +355,7 @@ export class BasesReorderController {
 			return;
 		}
 		const observer = new MutationObserver((records) => {
-			if (this.gesture) {
+			if (this.activeDrag) {
 				return;
 			}
 			if (!records.some((record) => this.isRelevantMutation(record))) {
@@ -342,6 +410,9 @@ export class BasesReorderController {
 	}
 
 	private syncReorderableItems(ctx: ContainerContext): void {
+		if (this.activeDrag) {
+			return;
+		}
 		const eligible = isSortEligibleForReorder(
 			ctx.config,
 			this.getSettings(),
@@ -350,6 +421,7 @@ export class BasesReorderController {
 		const selector = itemSelectorForKind(kind);
 
 		removeLegacyDragHandles(ctx.containerEl);
+		this.disposeItemRegistrations(ctx.containerEl);
 
 		ctx.containerEl
 			.querySelectorAll<HTMLElement>('.frontmatter-ordering-item')
@@ -360,6 +432,8 @@ export class BasesReorderController {
 					clearLinkDragSuppression(itemEl);
 				}
 			});
+
+		const bag = this.registrationBag(ctx.containerEl);
 
 		ctx.containerEl.querySelectorAll<HTMLElement>(selector).forEach((itemEl) => {
 			const resolved = resolveBasesItem(
@@ -375,11 +449,30 @@ export class BasesReorderController {
 			}
 			itemEl.classList.add('frontmatter-ordering-item');
 			setCachedItemFilePath(itemEl, resolved.file.path);
-			applyLinkDragSuppression(itemEl);
+			clearLinkDragSuppression(itemEl);
+
+			const dragHandle =
+				kind === 'table' ? findTableNameCellInRow(itemEl) : undefined;
+			if (kind === 'table' && !dragHandle) {
+				return;
+			}
+
+			const dispose = registerBasesReorderItem({
+				element: itemEl,
+				dragHandle: dragHandle ?? undefined,
+				path: resolved.file.path,
+				index: resolved.index,
+				groupIndex: resolved.groupIndex,
+			});
+			bag.push(dispose);
 		});
 	}
 
-	private clearItemsInContainer(ctx: ContainerContext): void {
+	private clearItemsInContainer(ctx: {
+		containerEl: HTMLElement;
+		basesView: BasesView;
+	}): void {
+		this.disposeItemRegistrations(ctx.containerEl);
 		const kind = viewKindFromBasesView(ctx.basesView);
 		ctx.containerEl
 			.querySelectorAll<HTMLElement>(itemSelectorForKind(kind))
@@ -391,7 +484,7 @@ export class BasesReorderController {
 
 	private updateHint(
 		containerEl: HTMLElement,
-		config: import('obsidian').BasesViewConfig,
+		config: BasesViewConfig,
 	): void {
 		const settings = this.getSettings();
 		containerEl.querySelector(`.${HINT_CLASS}`)?.remove();
@@ -407,8 +500,7 @@ export class BasesReorderController {
 
 	private shouldBlockNavigation(): boolean {
 		return (
-			this.gesture?.dragging === true ||
-			Date.now() < this.suppressClickUntil
+			this.activeDrag !== null || Date.now() < this.suppressClickUntil
 		);
 	}
 
@@ -529,18 +621,17 @@ export class BasesReorderController {
 	};
 
 	private readonly onTableSelectionChange = (): void => {
-		const gesture = this.gesture;
-		if (!gesture?.dragging) {
+		if (!this.activeDrag) {
 			return;
 		}
 		this.clearDomSelection();
-		this.clearBasesTableRowSelection(gesture.container.containerEl);
+		this.clearBasesTableRowSelection(this.activeDrag.container.containerEl);
 	};
 
 	private readonly blockTableMouseDownWhileDragging = (
 		evt: MouseEvent,
 	): void => {
-		if (!this.gesture?.dragging) {
+		if (!this.activeDrag) {
 			return;
 		}
 		evt.preventDefault();
@@ -551,7 +642,7 @@ export class BasesReorderController {
 	private readonly blockTablePointerDownWhileDragging = (
 		evt: PointerEvent,
 	): void => {
-		if (!this.gesture?.dragging) {
+		if (!this.activeDrag) {
 			return;
 		}
 		evt.preventDefault();
@@ -562,7 +653,7 @@ export class BasesReorderController {
 	private readonly blockTablePointerMoveWhileDragging = (
 		evt: PointerEvent,
 	): void => {
-		if (!this.gesture?.dragging) {
+		if (!this.activeDrag) {
 			return;
 		}
 		evt.preventDefault();
@@ -673,83 +764,8 @@ export class BasesReorderController {
 		});
 	}
 
-	private beginGesture(
-		ctx: ContainerContext,
-		source: ResolvedBasesItem,
-		evt: PointerEvent,
-	): void {
-		if (this.gesture) {
-			return;
-		}
-		const isTouch = evt.pointerType === 'touch';
-		this.gesture = {
-			container: ctx,
-			source,
-			pointerId: evt.pointerId,
-			startX: evt.clientX,
-			startY: evt.clientY,
-			startedAt: Date.now(),
-			dragging: false,
-			isTouch,
-			pendingInsertIndex: null,
-			pendingSlot: null,
-		};
-
-		const onMove = (e: PointerEvent) => this.onPointerMove(e);
-		const onUp = (e: PointerEvent) => {
-			void this.onPointerUp(e);
-			document.removeEventListener('pointermove', onMove, true);
-			document.removeEventListener('pointerup', onUp, true);
-			document.removeEventListener('pointercancel', onUp, true);
-		};
-		document.addEventListener('pointermove', onMove, true);
-		document.addEventListener('pointerup', onUp, true);
-		document.addEventListener('pointercancel', onUp, true);
-	}
-
-	private onPointerMove(evt: PointerEvent): void {
-		const gesture = this.gesture;
-		if (!gesture || evt.pointerId !== gesture.pointerId) {
-			return;
-		}
-		const dx = evt.clientX - gesture.startX;
-		const dy = evt.clientY - gesture.startY;
-		const dist = Math.hypot(dx, dy);
-		const elapsed = Date.now() - gesture.startedAt;
-
-		const canStart = gesture.isTouch
-			? (elapsed >= LONG_PRESS_MS && dist >= MOVE_THRESHOLD_PX) ||
-				dist >= MOVE_THRESHOLD_PX * 2.5
-			: dist >= MOVE_THRESHOLD_PX;
-
-		if (!gesture.dragging && canStart) {
-			gesture.dragging = true;
-			this.extendClickSuppression();
-			this.setReorderActive(gesture.container.containerEl, true);
-			this.clearDomSelection();
-			if (viewKindFromBasesView(gesture.container.basesView) === 'table') {
-				this.attachTableDragGuards(gesture.container.containerEl);
-			}
-			gesture.source.itemEl.classList.add(DRAGGING_CLASS);
-			try {
-				gesture.source.itemEl.setPointerCapture(evt.pointerId);
-			} catch {
-				/* ignore */
-			}
-			evt.preventDefault();
-			evt.stopPropagation();
-		}
-		if (!gesture.dragging) {
-			return;
-		}
-		evt.preventDefault();
-		evt.stopPropagation();
-		this.clearDomSelection();
-		this.scheduleInsertIndicatorUpdate(gesture, evt.clientX, evt.clientY);
-	}
-
 	private scheduleInsertIndicatorUpdate(
-		gesture: ActiveGesture,
+		drag: ActiveDrag,
 		clientX: number,
 		clientY: number,
 	): void {
@@ -760,80 +776,12 @@ export class BasesReorderController {
 		this.indicatorRaf = window.requestAnimationFrame(() => {
 			this.indicatorRaf = 0;
 			const coords = this.pendingIndicatorCoords;
-			const active = this.gesture;
-			if (!coords || !active?.dragging) {
+			const active = this.activeDrag;
+			if (!coords || !active) {
 				return;
 			}
 			this.updateInsertIndicator(active, coords.x, coords.y);
 		});
-	}
-
-	private async onPointerUp(evt: PointerEvent): Promise<void> {
-		const gesture = this.gesture;
-		if (!gesture || evt.pointerId !== gesture.pointerId) {
-			return;
-		}
-
-		try {
-			gesture.source.itemEl.releasePointerCapture(evt.pointerId);
-		} catch {
-			/* ignore */
-		}
-
-		if (gesture.dragging) {
-			evt.preventDefault();
-			evt.stopPropagation();
-
-			this.refreshGestureContext(gesture);
-			const placement = resolveDropPlacement(
-				gesture.container.containerEl,
-				gesture.container.basesView,
-				gesture.source,
-				evt.clientX,
-				evt.clientY,
-				gesture.pendingSlot,
-			);
-			const toIndex =
-				placement?.insertIndex ?? gesture.pendingInsertIndex;
-			if (toIndex !== null && toIndex !== gesture.source.index) {
-				await this.handleDrop(gesture, toIndex);
-			}
-		}
-
-		const hadDrag = gesture.dragging;
-		const containerEl = gesture.container.containerEl;
-		this.endGesture();
-		if (hadDrag) {
-			this.extendClickSuppression();
-			this.scheduleClickSwallowOnContainer(containerEl);
-		} else {
-			this.detachClickSuppressBlockers();
-		}
-	}
-
-	private endGesture(): void {
-		const gesture = this.gesture;
-		if (gesture) {
-			gesture.source.itemEl.classList.remove(DRAGGING_CLASS);
-			if (viewKindFromBasesView(gesture.container.basesView) === 'table') {
-				this.clearBasesTableRowSelection(gesture.container.containerEl);
-				this.restoreBasesTableSelectionChrome(
-					gesture.container.containerEl,
-				);
-			}
-			this.setReorderActive(gesture.container.containerEl, false);
-		} else {
-			this.deactivateReorderActiveContainer();
-		}
-		this.clearDomSelection();
-		this.pendingIndicatorCoords = null;
-		if (this.indicatorRaf !== 0) {
-			window.cancelAnimationFrame(this.indicatorRaf);
-			this.indicatorRaf = 0;
-		}
-		this.hideInsertIndicator();
-		this.detachTableDragGuards();
-		this.gesture = null;
 	}
 
 	private ensureInsertIndicator(containerEl: HTMLElement): HTMLElement {
@@ -858,28 +806,27 @@ export class BasesReorderController {
 	}
 
 	private updateInsertIndicator(
-		gesture: ActiveGesture,
+		drag: ActiveDrag,
 		clientX: number,
 		clientY: number,
 	): void {
-		this.refreshGestureContext(gesture);
-		const containerEl = gesture.container.containerEl;
+		const containerEl = drag.container.containerEl;
 		const placement = resolveDropPlacement(
 			containerEl,
-			gesture.container.basesView,
-			gesture.source,
+			drag.container.basesView,
+			drag.source,
 			clientX,
 			clientY,
-			gesture.pendingSlot,
+			drag.pendingSlot,
 		);
 		if (!placement) {
 			this.hideInsertIndicator();
-			gesture.pendingInsertIndex = null;
-			gesture.pendingSlot = null;
+			drag.pendingInsertIndex = null;
+			drag.pendingSlot = null;
 			return;
 		}
-		gesture.pendingInsertIndex = placement.insertIndex;
-		gesture.pendingSlot = placement.slot;
+		drag.pendingInsertIndex = placement.insertIndex;
+		drag.pendingSlot = placement.slot;
 		const el = this.ensureInsertIndicator(containerEl);
 		const cr = containerEl.getBoundingClientRect();
 		const v = placement.indicatorViewport;
@@ -896,18 +843,18 @@ export class BasesReorderController {
 	}
 
 	private async handleDrop(
-		gesture: ActiveGesture,
+		drag: ActiveDrag,
 		toIndex: number,
 	): Promise<void> {
-		const source = gesture.source;
+		const source = drag.source;
 		const entries = markdownEntriesFromResult(
-			gesture.container.basesView.data,
+			drag.container.basesView.data,
 			source.groupIndex,
 		);
 		const files = filesFromEntries(entries);
 		const settings = this.getSettings();
 		const displayDirection = reorderSortDirectionFromConfig(
-			gesture.container.config,
+			drag.container.config,
 			settings,
 		);
 		if (!displayDirection) {
