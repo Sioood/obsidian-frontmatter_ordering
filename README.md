@@ -1,92 +1,82 @@
-# Obsidian Sample Plugin
+# Frontmatter Ordering
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Obsidian community plugin that stores note sort order in frontmatter (default property `order`) and supports drag-and-drop reorder in native **Bases** table, list, and gallery views when the primary sort is that property (ascending or descending).
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Setup
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
+1. Enable **Bases** (core plugin) and this plugin in **Settings → Community plugins**.
+2. Add a **number** property (e.g. `order`) to your Base property list.
+3. In each Bases view, set **Sort** to `order` **ascending** or **descending** (drag-reorder follows the view’s sort direction).
+4. **Drag to reorder:** in **table** views, drag from the **file/name column**; in **list** and **gallery**, drag the whole row or card. A short movement starts reorder; **tap or click without dragging** still opens the note. Property cells in tables stay editable. Native **link drag** is disabled on eligible items. A **colored insertion line** shows the drop position.
 
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and outputs a Notice on click.
-- Registers a global interval which logs 'setInterval' to the console.
+Order values are **integers** `1`, `2`, `3`, … in the visible scope after a drag or renumber command. Order lives only in note YAML—not in `.base` files.
 
-## First time developing plugins?
+## Commands
 
-Quick starting guide for new plugin devs:
+| Command | ID |
+|--------|-----|
+| Fill missing order in folder | `fill-missing-order-in-folder` |
+| Renumber order in folder | `renumber-order-in-folder` |
+| Fill missing order in current Bases view | `fill-missing-order-in-bases-view` |
+| Renumber order in current Bases view | `renumber-order-in-bases-view` |
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `src/main.ts` to `main.js`.
-- Make changes to `src/main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+**Fill** assigns the next integers after the current maximum in scope. **Renumber** writes `1..n` in display order (respecting ascending/descending setting).
 
-## Releasing new releases
+## Settings
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+- **Order property name** (default `order`)
+- **Default sort direction** — used by Renumber/Fill commands (Bases drag uses the view’s sort)
+- **Missing order placement**, **Tie-breaker**, **Bases sort hint** (shows required property and **ascending** or **descending**)
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## Interaction notes
 
-## Adding your plugin to the community plugin list
+- **Table:** drag from the name/title column only. **List/gallery:** whole-item drag (no separate grip).
+- **Link drag** from Bases/Obsidian is suppressed on eligible items; use click/tap to open notes.
+- **Grouped** Bases: reorder within one group only.
+- **Touch:** long-press briefly, then drag to reorder.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+## Limitations
 
-## How to use
+- File explorer drag reorder is not implemented yet.
+- DOM selectors may need updates when Obsidian changes Bases markup.
 
-- Clone this repo.
-- Make sure your NodeJS is at least v18 (`node --version`).
-- `npm i` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+## Development
 
-## Manually installing the plugin
+Vault: **`dev-obsidian`**.
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-	"fundingUrl": "https://buymeacoffee.com"
-}
+```bash
+npm install
+npm run dev
+npm run build
+npm run lint
 ```
 
-If you have multiple URLs, you can also do:
-
-```json
-{
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com",
-		"GitHub Sponsor": "https://github.com/sponsors",
-		"Patreon": "https://www.patreon.com/"
-	}
-}
+```bash
+obsidian vault=dev-obsidian plugin:reload id=obsidian-frontmatter_ordering
 ```
 
-## API Documentation
+### CLI examples
 
-See https://docs.obsidian.md
+```bash
+obsidian vault=dev-obsidian plugins:enabled filter=community
+obsidian vault=dev-obsidian property:read name=order path="order_folder/1.md"
+obsidian vault=dev-obsidian command id=obsidian-frontmatter_ordering:renumber-order-in-folder
+obsidian vault=dev-obsidian base:query path="order_folder/base.base" format=json
+obsidian vault=dev-obsidian dev:errors
+```
+
+After **renumber**, expect `order` values `1`, `2`, `3` (or reversed mapping when sort direction is descending).
+
+### Manual checks
+
+| Case | Expected |
+|------|----------|
+| Renumber scope of 3 notes | `order` is `1`, `2`, `3` (asc) or `3`, `2`, `1` (desc) |
+| Fill missing with max `2` | Next missing notes get `3`, `4`, … |
+| Drag row/card in Bases | Scope renumbered to integers; insertion line tracks pointer |
+| Tap / click without drag | Note opens; no reorder |
+| Wrong Bases sort | Hint names property and ascending/descending |
+
+## License
+
+0-BSD (see `package.json`).

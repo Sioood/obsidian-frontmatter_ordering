@@ -1,8 +1,111 @@
-/*
+.frontmatter-ordering-item {
+	cursor: grab;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Table: drag from file / title column only; other cells keep default cursor for editing */
+.bases-view .frontmatter-ordering-item.bases-tr {
+	cursor: default;
+}
 
-If your plugin does not need CSS, delete this file.
+.bases-view .frontmatter-ordering-item.bases-tr .bases-td[data-property='file.name'],
+.bases-view .frontmatter-ordering-item.bases-tr .bases-td[data-property='file.basename'],
+.bases-view .frontmatter-ordering-item.bases-tr .bases-td[data-property='note.title'],
+.bases-view .frontmatter-ordering-item.bases-tr .bases-td:has(a.internal-link) {
+	cursor: grab;
+}
 
-*/
+.bases-view.frontmatter-ordering-reorder-active .frontmatter-ordering-item,
+.frontmatter-ordering-item.frontmatter-ordering-dragging {
+	touch-action: none;
+	user-select: none;
+	-webkit-user-select: none;
+	cursor: grabbing;
+}
+
+.bases-view.frontmatter-ordering-reorder-active .bases-tbody {
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.bases-view.frontmatter-ordering-reorder-active .bases-tbody .bases-tr {
+	user-select: none;
+	-webkit-user-select: none;
+	pointer-events: none;
+}
+
+.bases-view.frontmatter-ordering-reorder-active .bases-table-selection,
+.bases-view.frontmatter-ordering-reorder-active .bases-table-active-cell {
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
+.bases-view.frontmatter-ordering-reorder-active .bases-tbody .bases-tr.is-selected,
+.bases-view.frontmatter-ordering-reorder-active .bases-tbody .bases-td.is-selected,
+.bases-view.frontmatter-ordering-reorder-active .bases-tbody .bases-tr.is-active,
+.bases-view.frontmatter-ordering-reorder-active .bases-tbody .bases-td.is-active {
+	background-color: var(--bases-table-row-background, transparent) !important;
+	box-shadow: none !important;
+	outline: none !important;
+}
+
+.bases-view.frontmatter-ordering-reorder-active
+	.bases-tbody
+	.bases-tr
+	.bases-td {
+	box-shadow: none;
+	background-color: transparent;
+}
+
+.frontmatter-ordering-drag-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 45;
+	cursor: grabbing;
+	background: transparent;
+}
+
+.frontmatter-ordering-item a {
+	-webkit-user-drag: none;
+}
+
+.frontmatter-ordering-item.frontmatter-ordering-dragging {
+	opacity: 0.55;
+	cursor: grabbing;
+	pointer-events: none;
+}
+
+.bases-view {
+	position: relative;
+}
+
+.frontmatter-ordering-insert-indicator {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 0;
+	height: 0;
+	z-index: 50;
+	pointer-events: none;
+	background-color: var(--interactive-accent);
+	border-radius: 3px;
+	box-shadow:
+		0 0 0 1px var(--background-primary),
+		0 0 12px var(--interactive-accent);
+	animation: frontmatter-ordering-pulse 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes frontmatter-ordering-pulse {
+	from {
+		opacity: 0.85;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.frontmatter-ordering-bases-hint {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	padding: 0.35em 0.75em;
+	border-bottom: 1px solid var(--background-modifier-border);
+}

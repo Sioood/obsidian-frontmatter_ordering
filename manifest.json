@@ -1,11 +1,9 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
-	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"id": "obsidian-frontmatter_ordering",
+	"name": "Frontmatter Ordering",
+	"version": "0.1.0",
+	"minAppVersion": "1.10.0",
+	"description": "Sort notes with a frontmatter order property; drag to reorder in Bases views.",
+	"author": "duponttheo",
 	"isDesktopOnly": false
 }
