@@ -32,18 +32,71 @@ The plugin MUST detect whether the Bases core plugin is enabled. Bases-specific 
 - **WHEN** Bases is enabled
 - **THEN** the plugin registers Bases reorder integration after plugin load
 
+### Requirement: Reorder mode toggle in Bases toolbar
+
+The plugin MUST provide a **toggle control** in the active Bases view toolbar on **desktop and mobile**, inserted **immediately before** the native **sort** control only (e.g. **Trier** in French, **Sort** in English)—in the **right-side** control cluster beside filter—not at the **far left** of the toolbar (not before **Vue** / view picker, not first toolbar child). The toggle MUST arm or disarm drag-and-drop reorder for that Bases view. Initial state MUST be **on** unless the user has changed the plugin **default reorder mode** setting (see `commands-and-settings`).
+
+#### Scenario: Toggle visible on desktop and mobile
+
+- **WHEN** the user opens an eligible Bases view on desktop or a phone/tablet
+- **THEN** the reorder mode toggle appears **immediately to the left of** the sort (**Trier**) control in the same toolbar row
+
+#### Scenario: Toggle precedes sort in DOM order
+
+- **WHEN** the plugin mounts the reorder toggle and the sort control is found in the toolbar
+- **THEN** the toggle element is the **immediate previous sibling** of the sort control (inserted with `beforebegin` on the **sort** anchor)
+- **AND** the plugin does **not** place the toggle at the far left of the toolbar, does **not** use `viewRoot.prepend`, and does **not** use toolbar-wide `prepend`/`appendChild` when sort is found
+
+#### Scenario: Sort anchor is the Trier/Sort control
+
+- **WHEN** resolving where to mount the toggle (localized UI)
+- **THEN** the anchor MUST be the Bases **sort** button (match visible label **Trier** or **Sort**, or sort-specific `aria-label` / tooltip), not an arbitrary first `clickable-icon` in the toolbar
+
+#### Scenario: Toggle off disarms reorder
+
+- **WHEN** the user turns reorder mode **off**
+- **THEN** Pragmatic drag and drop adapters are not active for that view
+- **AND** horizontal edge swipes behave as default Obsidian (sidebars can open)
+- **AND** scrolling and tap-to-open are unchanged
+
+#### Scenario: Toggle on with eligible sort
+
+- **WHEN** reorder mode is **on** and primary sort is the order property (ASC or DESC)
+- **THEN** drag-and-drop reorder is armed as specified elsewhere in this spec
+
+#### Scenario: Toggle on without eligible sort
+
+- **WHEN** reorder mode is **on** but the view is not sorted by the order property
+- **THEN** reorder is not armed
+- **AND** the existing sort hint MAY still appear
+
+### Requirement: Mobile sidebar swipe coexistence when reorder is armed
+
+When reorder mode is **on** and the view is sort-eligible, the plugin MUST apply gesture handling on the Bases view container so **reorder drags** (especially on list/gallery) do not trivially trigger Obsidian **left/right sidebar** edge swipes. When reorder mode is **off**, the plugin MUST NOT apply that handling.
+
+#### Scenario: Reorder armed on mobile
+
+- **WHEN** the user has reorder mode **on** on a touch device in an eligible view
+- **THEN** the user can reorder after a primarily **vertical** engagement or other documented gesture without the first horizontal move opening a sidebar
+- **AND** vertical scrolling within the Bases view still works
+
+#### Scenario: Sidebars when reorder off
+
+- **WHEN** reorder mode is **off** on mobile
+- **THEN** the plugin does not block or alter Obsidian sidebar swipe gestures
+
 ### Requirement: Eligible sort for drag reorder
 
-Drag-and-drop reordering MUST be available when the active Bases view’s **primary sort** is the configured order property (ascending **or** descending). Renumber-on-drop MUST use the **view’s** current sort direction (ASC/DESC), not a separate plugin-only gate.
+Drag-and-drop reordering MUST be available when **reorder mode is on** and the active Bases view’s **primary sort** is the configured order property (ascending **or** descending). Renumber-on-drop MUST use the **view’s** current sort direction (ASC/DESC), not a separate plugin-only gate.
 
 #### Scenario: Sorted by order ascending
 
-- **WHEN** the Bases view primary sort is the order property ascending
+- **WHEN** reorder mode is **on** and the Bases view primary sort is the order property ascending
 - **THEN** whole-item drag reorder is active and drops update frontmatter order using ascending mapping (`1` at top)
 
 #### Scenario: Sorted by order descending
 
-- **WHEN** the Bases view primary sort is the order property descending
+- **WHEN** reorder mode is **on** and the Bases view primary sort is the order property descending
 - **THEN** whole-item drag reorder is active and drops update frontmatter order using descending mapping (top = largest integer in scope)
 
 #### Scenario: Wrong sort key
@@ -190,7 +243,7 @@ When eligible, the plugin MUST support reorder via drag-and-drop in Bases **tabl
 
 ### Requirement: Mobile touch reorder
 
-When eligible, the plugin MUST support whole-item reorder on touch devices using touch-safe pointer handling (long-press or equivalent before move).
+When reorder mode is on and the view is eligible, the plugin MUST support whole-item reorder on touch devices using Pragmatic drag and drop with touch-safe handling. Users MAY need to engage vertically before horizontal reorder on some devices; the reorder toolbar toggle MUST be available to disarm reorder when sidebar swipes are preferred.
 
 #### Scenario: Touch drag on phone or tablet
 

@@ -7,7 +7,7 @@ Obsidian community plugin that stores note sort order in frontmatter (default pr
 1. Enable **Bases** (core plugin) and this plugin in **Settings → Community plugins**.
 2. Add a **number** property (e.g. `order`) to your Base property list.
 3. In each Bases view, set **Sort** to `order` **ascending** or **descending** (drag-reorder follows the view’s sort direction).
-4. **Drag to reorder:** in **table** views, drag from the **file/name column**; in **list** and **gallery**, drag the whole row or card. A short movement starts reorder; **tap or click without dragging** still opens the note. Property cells in tables stay editable. Native **link drag** is disabled on eligible items. A **colored insertion line** shows the drop position.
+4. **Drag to reorder:** use the **arrow reorder toggle** in the Bases toolbar (next to sort). Default is **on**. In **table** views, drag from the **file/name column**; in **list** and **gallery**, drag the whole row or card. Turn reorder **off** on mobile to swipe vault/file sidebars normally. A **colored insertion line** shows the drop position.
 
 Order values are **integers** `1`, `2`, `3`, … in the visible scope after a drag or renumber command. Order lives only in note YAML—not in `.base` files.
 
@@ -27,10 +27,12 @@ Order values are **integers** `1`, `2`, `3`, … in the visible scope after a dr
 - **Order property name** (default `order`)
 - **Default sort direction** — used by Renumber/Fill commands (Bases drag uses the view’s sort)
 - **Missing order placement**, **Tie-breaker**, **Bases sort hint** (shows required property and **ascending** or **descending**)
+- **Default Bases reorder mode** — initial state of the toolbar reorder toggle when a view opens
 
 ## Interaction notes
 
 - Bases reorder uses **Pragmatic drag and drop** (HTML5 DnD adapters), not custom pointer tracking.
+- **Toolbar reorder toggle** (desktop and mobile): on = drag reorder when sort matches; off = no drag (sidebars swipe normally on mobile).
 - **Table:** drag from the name/title column only. **List/gallery:** whole-item drag (no separate grip).
 - **Link drag** from Bases/Obsidian is suppressed on eligible items; use click/tap to open notes.
 - **Grouped** Bases: reorder within one group only.

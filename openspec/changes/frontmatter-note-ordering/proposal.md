@@ -10,7 +10,8 @@ Obsidian users need a portable, tool-agnostic way to define a stable sort order 
 - Use **consecutive integer ordering** (`1`, `2`, `3`, …) in the active scope after a reorder or normalize command so values stay human-readable and predictable (not large arbitrary steps such as 1000, 2000).
 - **Reorder gestures** on list and gallery: drag the **whole row or card** (no per-item grip handles). **Table:** drag starts from the **file / note name column** only so other columns stay editable inline. Implement drag-and-drop with **[Pragmatic drag and drop](https://atlassian.design/components/pragmatic-drag-and-drop)** ([`@atlaskit/pragmatic-drag-and-drop`](https://github.com/atlassian/pragmatic-drag-and-drop))—element adapters, drop targets, and optional hitbox/auto-scroll packages—**instead of** a bespoke pointer-capture gesture controller. **Disable Obsidian/Bases native link drag** where it competes with reorder; preserve **tap/click to open** and inline property edit when not dragging.
 - **Drop insertion indicator** while dragging (divider/line showing where the item will land before release).
-- **Mobile**: touch reorder with the same whole-item + threshold/long-press model.
+- **Bases reorder mode toggle**: a toolbar control placed **immediately before** the Bases **sort** button (**Trier** / **Sort**—right-side cluster, not far-left of the bar) turns drag-and-drop reorder **on or off** for the active view. Default **on** when the view opens (overridable via plugin setting). When **on** and sort-eligible, reorder is armed; when **off**, no PdD adapters and normal scrolling/swiping apply.
+- **Mobile**: horizontal edge swipes open Obsidian sidebars and conflict with list/gallery reorder. When reorder mode is **on**, the plugin MUST reduce that conflict (e.g. `touch-action` / gesture handling on the Bases view surface) so vertical reorder is practical; users can turn reorder **off** to restore unobstructed sidebar swipes.
 - **Respect manual frontmatter edits**: external or hand-edited `order` values are the source of truth until the user performs a reorder action or an explicit renumber/fill command.
 - Expose **commands** to normalize order in a folder or for the current Bases result set, and to insert default order for notes missing the property.
 - Document setup: users add the order property to Bases and sort by it **ascending or descending** (either direction enables drag); plugin **settings** sort direction applies to commands and tie-break comparison, not as a gate on Bases eligibility; optional snippets for default frontmatter.
@@ -21,7 +22,7 @@ Obsidian users need a portable, tool-agnostic way to define a stable sort order 
 ### New Capabilities
 
 - `frontmatter-order`: Configuration, parsing, comparison, and safe read/write of the order property on markdown notes (including notes without frontmatter, YAML edge cases, and concurrent manual edits). Normal form is **integer ranks** `1..n` in scope.
-- `bases-reorder`: Bases integration on **native** table/list/gallery views—**Pragmatic drag and drop** for reorder UX, eligible when primary sort is the order property (ASC or DESC), link-drag coexistence, name-column table drag + whole-item list/gallery, virtualized row/file resolution, map drops to frontmatter updates (including Obsidian 1.13+ `.bases-tbody .bases-tr` table rows).
+- `bases-reorder`: Bases integration on **native** table/list/gallery views—**Pragmatic drag and drop**, **reorder mode toolbar toggle** (default on), eligible when primary sort is the order property (ASC or DESC) **and** reorder mode is on, link-drag coexistence, mobile sidebar-swipe mitigation when reorder is on, name-column table drag + whole-item list/gallery, virtualized row/file resolution, map drops to frontmatter updates (including Obsidian 1.13+ `.bases-tbody .bases-tr` table rows).
 - `commands-and-settings`: User-facing settings tab, commands (renumber, fill missing order), direction-aware hints, and notices for errors or partial failures.
 
 ### Modified Capabilities
@@ -30,7 +31,7 @@ Obsidian users need a portable, tool-agnostic way to define a stable sort order 
 
 ## Impact
 
-- **Code**: Native Bases views only; **refactor** `reorder-controller` from custom pointer DnD to **Pragmatic drag and drop** (bundle into `main.js` via esbuild); keep table name column, list/gallery whole-item, virtualized `TFile` resolution, insertion indicator, and frontmatter assign pipeline.
+- **Code**: Native Bases views; **Pragmatic drag and drop**; **reorder toggle UI** in Bases toolbar; gate adapter registration on toggle + sort eligibility; mobile gesture/sidebar coexistence when toggle on; table name column, list/gallery whole-item, virtualized `TFile` resolution, insertion indicator, assign pipeline.
 - **Manifest**: Unchanged intent (`minAppVersion` 1.10.0+ for Bases APIs).
 - **Dependencies**: Runtime **`@atlaskit/pragmatic-drag-and-drop`** (+ minimal optional packages: element adapter, hitbox/closest-edge and/or list-reorder patterns, auto-scroll as needed). Document license (Apache-2.0) in README. No network at runtime.
 - **Performance**: Reorder may update multiple files in the visible Bases scope when renumbering to `1..n` (acceptable trade-off for simple integers).

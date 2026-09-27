@@ -78,6 +78,25 @@
 	position: relative;
 }
 
+/* Reorder armed: favor vertical pan + in-view drag over edge sidebar swipes (mobile) */
+.bases-view.frontmatter-ordering-reorder-armed {
+	touch-action: pan-y;
+	overscroll-behavior-x: contain;
+}
+
+.frontmatter-ordering-reorder-toggle-wrap {
+	display: inline-flex;
+	align-items: center;
+}
+
+.frontmatter-ordering-reorder-toggle-wrap.bases-toolbar-item {
+	flex-shrink: 0;
+}
+
+.frontmatter-ordering-reorder-toggle.is-active {
+	color: var(--interactive-accent);
+}
+
 .frontmatter-ordering-insert-indicator {
 	position: absolute;
 	left: 0;

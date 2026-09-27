@@ -2,7 +2,7 @@
 
 The repo is the Obsidian sample plugin (TypeScript, esbuild). The product goal is frontmatter-only ordering with Bases drag-and-drop first; File Explorer reorder is a later phase. Obsidian **1.10+** exposes Bases APIs (`BasesView`, `BasesViewConfig.getSort()`). Reorder hooks **native** table/list/gallery DOM via a decorator controller—not a custom `registerBasesView` list type. Bases rows are query-derived—not persisted view state—so community practice is to store rank in **note properties** and sort the Base by that property.
 
-**UX evolution:** Whole-item drag conflicted with links → handles were tried and removed. Current shipped code uses a **custom pointer gesture controller**; the target architecture **replaces** that engine with **[Pragmatic drag and drop](https://atlassian.design/components/pragmatic-drag-and-drop)** while keeping the same user-visible rules (table name column, whole list/gallery item, insertion indicator, ASC/DESC renumber).
+**UX evolution:** Whole-item drag conflicted with links → handles removed → **Pragmatic drag and drop** adopted. On **mobile**, horizontal swipes still open Obsidian **left/right sidebars**, which fights horizontal drag on list/gallery rows; users may need a **vertical** move before reorder “locks.” Mitigation: a **reorder mode toggle** in the Bases toolbar (default **on**) arms PdD only when enabled and applies touch/gesture guards on the Bases surface while armed.
 
 Table DOM on Obsidian **1.13+** uses **`.bases-tbody .bases-tr`** for data rows (not `.bases-table-row`).
 
@@ -20,6 +20,7 @@ See `proposal.md` for motivation and scope boundaries.
 - Coexist with Obsidian link drag and table property editors (conditional drag, minimal custom preview).
 - Taps/clicks still open notes when the user is not performing a reorder drag.
 - Settings, commands, direction-aware hints, insertion indicator.
+- **Reorder mode toggle** in Bases view chrome (desktop + mobile), default on.
 
 **Non-Goals (this change):**
 
@@ -76,7 +77,45 @@ Unchanged: discovery, eligibility (`getSort()`), `assign` renumber, `view-intern
 
 **Virtualization:** Unchanged — `resolveFileForBasesItem` / row pools; PdD `getInitialData` must carry identity that survives DOM recycle.
 
+### 3b. Reorder mode toggle (Bases toolbar)
+
+**Problem:** On phones/tablets, edge swipes reveal vault/file sidebars; list/gallery reorder drags are often horizontal first.
+
+**UI:**
+
+- Inject a **toggle button** **immediately before** the native **sort** control only (`insertAdjacentElement('beforebegin', sortAnchor)`), in the **right** toolbar cluster (just left of **Trier** / **Sort**), **not** at the far left near view picker / result count (see reference: toggle wrongly at left of **Vue** is incorrect).
+- **Sort anchor resolution:** locate the real sort button—visible text **Trier** or **Sort**, or sort `aria-label` / tooltip—not `toolbar.querySelector`’s first/last generic icon. Then `beforebegin` on that element.
+- Do **not** use `viewRoot.prepend`, toolbar-wide `prepend`, or `appendChild` when sort is found. Fallback only when sort cannot be resolved after localized selectors.
+- Shown on **desktop and mobile** when the plugin is enabled and Bases is active.
+- **Default state: ON** (`reorder mode armed`). Plugin setting **`defaultBasesReorderMode`** (boolean, default `true`) sets initial state when a Bases leaf is first attached; toggling is per active Bases container until reload (optional later: persist per `.base` view—out of scope unless needed).
+
+**Behavior:**
+
+| Reorder toggle | Sort eligible | Result |
+|----------------|---------------|--------|
+| OFF | any | No PdD registration; no insertion indicator; sidebar swipes unchanged |
+| ON | no | Show sort hint if enabled; no PdD |
+| ON | yes | Register PdD adapters; reorder works per §3 |
+
+**Mobile sidebar coexistence (toggle ON + eligible):**
+
+- Apply **`touch-action`** (e.g. `pan-y` on list/gallery/table body) and/or **capture-phase touch/pointer** handling on the Bases **view container** so horizontal drags on items prioritize reorder over **sidebar edge-swipe** where the platform allows—without breaking vertical scroll.
+- When toggle is **OFF**, remove those styles/listeners so Obsidian sidebar gestures behave normally.
+- Document in README: turn reorder **off** to swipe sidebars freely; turn **on** to reorder (may require starting with a **vertical** move on some devices).
+
+**Module layout addition:**
+
+```
+src/bases/
+  reorder-toggle.ts    # toolbar button, armed state, touch-action helpers
+```
+
 **Alternatives:**
+
+- Always-on reorder with no toggle — **rejected** (mobile sidebar conflict).
+- Vertical-only drag lock before horizontal — **optional enhancement**; toggle is primary UX.
+
+**Alternatives (DnD engine):**
 
 - **Custom pointer DnD (current code)** — **superseded** by this decision (maintenance, browser consistency, virtualization-friendly patterns).
 - Per-view grip handles — **rejected** (clutter).
@@ -102,17 +141,18 @@ Remove or stop shipping `drag-handle.ts` and **`fallback-view.ts`** (ordered lis
 - **[Link vs drag]** → PdD element adapter + conditional `canDrag`; keep link `dragstart` guards if Obsidian still wins; re-test table name column and gallery cards.
 - **[Bundle size]** → PdD core is small; only import optional packages used; tree-shake via esbuild.
 - **[Table row DOM]** → Keep `.bases-tbody .bases-tr` selectors from 4.13.
-- **[Tap mistaken as drag]** → Thresholds; user testing in section 7.
+- **[Mobile sidebar swipe vs reorder]** → Reorder toggle + `touch-action` / container guards when armed; user testing in §7.6 / §9.
 - **[Grouped bases / multi-file writes]** → Unchanged.
 
 ## Migration Plan
 
 1. Update artifacts (this change).
-2. **`/opsx-apply`**: migrate reorder to Pragmatic drag and drop; re-verify table/list/gallery + section 7 manual QA; README dependency note.
+2. **`/opsx-apply`**: Bases reorder toolbar toggle + mobile sidebar mitigation; re-verify §7 / §9 manual QA; README.
 3. Renumber command for legacy `order` values if needed.
 
 ## Open Questions
 
 - Which PdD optional packages to adopt (hitbox vs fully custom indicator positioning).
-- Touch behavior with HTML5 DnD on iOS/Android in Obsidian WebView (validate in 7.6).
+- Exact Bases toolbar DOM hook for sort-adjacent toggle (validate per Obsidian version).
+- Whether `touch-action: pan-y` alone is sufficient vs. temporary edge-swipe suppression during active drag only.
 - Whether Bases resets DOM attributes on refresh (re-register PdD adapters on observer sync).

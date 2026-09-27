@@ -27,6 +27,12 @@ import {
 	registerBasesReorderItem,
 } from './pragmatic-dnd';
 import {
+	mountReorderToggle,
+	REORDER_TOGGLE_CLASS,
+	type ReorderToggleHandle,
+	setReorderArmedSurface,
+} from './reorder-toggle';
+import {
 	clearCachedItemFilePath,
 	setCachedItemFilePath,
 } from './view-internals';
@@ -62,6 +68,7 @@ export class BasesReorderController {
 	private readonly lastSyncedViewKey = new WeakMap<HTMLElement, string>();
 	private readonly registrationBags = new WeakMap<HTMLElement, (() => void)[]>();
 	private readonly containerMonitors = new WeakMap<HTMLElement, () => void>();
+	private readonly reorderToggles = new Map<HTMLElement, ReorderToggleHandle>();
 	private debounceTimer: number | null = null;
 	private activeDrag: ActiveDrag | null = null;
 	private insertIndicatorEl: HTMLElement | null = null;
@@ -89,10 +96,15 @@ export class BasesReorderController {
 		this.removeDragOverlay();
 		this.deactivateReorderActiveContainer();
 		this.endActiveDrag();
+		for (const handle of this.reorderToggles.values()) {
+			handle.dispose();
+		}
+		this.reorderToggles.clear();
 		for (const leaf of this.app.workspace.getLeavesOfType('bases')) {
 			const ctx = getBasesContextFromLeaf(leaf);
 			if (ctx) {
 				this.containerObservers.get(ctx.containerEl)?.disconnect();
+				setReorderArmedSurface(ctx.containerEl, false);
 				this.disposeContainerDnd(ctx.containerEl);
 				removeLegacyDragHandles(ctx.containerEl);
 				this.clearItemsInContainer(ctx);
@@ -130,6 +142,7 @@ export class BasesReorderController {
 			}
 			this.bindBasesLeaf(leaf);
 			this.bindContainer(ctx.containerEl);
+			this.ensureReorderToggle(leaf, ctx.containerEl);
 			this.watchContainer(ctx.containerEl);
 			const containerCtx: ContainerContext = {
 				containerEl: ctx.containerEl,
@@ -214,6 +227,41 @@ export class BasesReorderController {
 		this.disposeItemRegistrations(containerEl);
 		this.containerMonitors.get(containerEl)?.();
 		this.containerMonitors.delete(containerEl);
+	}
+
+	private ensureReorderToggle(
+		leaf: WorkspaceLeaf,
+		containerEl: HTMLElement,
+	): void {
+		let handle = this.reorderToggles.get(containerEl);
+		if (!handle) {
+			handle = mountReorderToggle(
+				leaf.view.containerEl,
+				containerEl,
+				this.getSettings().defaultBasesReorderMode,
+				() => {
+					const ctx = this.contextForContainer(containerEl);
+					if (ctx) {
+						this.syncReorderableItems(ctx);
+					}
+				},
+			);
+			this.reorderToggles.set(containerEl, handle);
+		} else if (!handle.isMounted()) {
+			handle.remount();
+		}
+	}
+
+	private isReorderArmed(containerEl: HTMLElement): boolean {
+		return this.reorderToggles.get(containerEl)?.isArmed() ?? false;
+	}
+
+	private updateReorderSurface(
+		containerEl: HTMLElement,
+		armed: boolean,
+		eligible: boolean,
+	): void {
+		setReorderArmedSurface(containerEl, armed && eligible);
 	}
 
 	private bindContainer(containerEl: HTMLElement): void {
@@ -380,7 +428,9 @@ export class BasesReorderController {
 				(target.classList.contains(INSERT_INDICATOR_CLASS) ||
 					target.classList.contains(HINT_CLASS) ||
 					target.classList.contains(DRAG_OVERLAY_CLASS) ||
-					target.classList.contains(DRAGGING_CLASS))
+					target.classList.contains(DRAGGING_CLASS) ||
+					target.classList.contains(REORDER_TOGGLE_CLASS) ||
+					target.closest('.frontmatter-ordering-reorder-toggle-wrap'))
 			) {
 				return false;
 			}
@@ -417,6 +467,8 @@ export class BasesReorderController {
 			ctx.config,
 			this.getSettings(),
 		);
+		const armed = this.isReorderArmed(ctx.containerEl);
+		this.updateReorderSurface(ctx.containerEl, armed, eligible);
 		const kind = viewKindFromBasesView(ctx.basesView);
 		const selector = itemSelectorForKind(kind);
 
@@ -441,7 +493,7 @@ export class BasesReorderController {
 				ctx.basesView,
 				itemEl,
 			);
-			if (!resolved || !eligible) {
+			if (!resolved || !eligible || !armed) {
 				itemEl.classList.remove('frontmatter-ordering-item');
 				clearCachedItemFilePath(itemEl);
 				clearLinkDragSuppression(itemEl);

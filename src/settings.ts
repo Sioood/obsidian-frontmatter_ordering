@@ -11,6 +11,7 @@ export interface FrontmatterOrderingSettings {
 	missingOrderPlacement: MissingOrderPlacement;
 	tieBreaker: TieBreakerField;
 	showBasesSortHint: boolean;
+	defaultBasesReorderMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: FrontmatterOrderingSettings = {
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS: FrontmatterOrderingSettings = {
 	missingOrderPlacement: 'last',
 	tieBreaker: 'path',
 	showBasesSortHint: true,
+	defaultBasesReorderMode: true,
 };
 
 export class FrontmatterOrderingSettingTab extends PluginSettingTab {
@@ -102,6 +104,20 @@ export class FrontmatterOrderingSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.showBasesSortHint)
 					.onChange(async (value) => {
 						this.plugin.settings.showBasesSortHint = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Default Bases reorder mode')
+			.setDesc(
+				'When a Bases view opens, start with the toolbar reorder toggle on (drag to reorder) or off (normal sidebar swipes on mobile).',
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.defaultBasesReorderMode)
+					.onChange(async (value) => {
+						this.plugin.settings.defaultBasesReorderMode = value;
 						await this.plugin.saveSettings();
 					}),
 			);

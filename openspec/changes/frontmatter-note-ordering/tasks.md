@@ -73,6 +73,17 @@
 - [x] 8.8 `npm run build` (production bundle includes PdD); reload in `dev-obsidian` for smoke test
 - [ ] 8.9 Re-run manual **§7** (especially 7.1, 7.2, 7.6 touch) after migration
 
+## 9. Bases reorder mode toggle (mobile sidebar coexistence)
+
+- [x] 9.1 Add setting `defaultBasesReorderMode` (default `true`) in `settings.ts`
+- [x] 9.2 Implement `src/bases/reorder-toggle.ts` — toolbar button adjacent to Bases sort control; per-container armed state; desktop + mobile
+- [x] 9.8 **Toolbar placement** — insert reorder toggle **`beforebegin`** on the **sort/Trier** anchor only (right cluster); not far-left / not `viewRoot.prepend`; resolve sort by label **Trier**/**Sort** or sort aria-label
+- [x] 9.3 Gate `syncReorderableItems` / PdD registration on **armed** toggle + sort eligibility
+- [x] 9.4 When armed + eligible: apply `touch-action` / container gesture helpers on `.bases-view` (or equivalent) to reduce sidebar edge-swipe during reorder; remove when off
+- [x] 9.5 Toggle accessibility: clear on/off labels, `aria-pressed`, sentence-case tooltip
+- [x] 9.6 Update `README.md` — reorder toggle, default on, turn off for sidebar swipes on mobile
+- [x] 9.7 `npm run build`; manual **§7.6** and **§9** on touch device (build done; manual QA pending)
+
 ## 7. Manual test plan (UI — apply verification)
 
 - [ ] 7.1 Bases **table**: drag from **name/title column** reorders; **no** plugin handle; link drag does not steal gesture; **click name cell opens note**; **click property cell edits inline** without starting reorder; **no false multi-select highlight** except during an active drag; integers match display order after drop (**ASC** and **DESC** per view sort); **virtualized** rows update the correct files
@@ -81,4 +92,5 @@
 - [ ] 7.3 Manual edit `order` in source mode; confirm sort updates without plugin overwrite until next drag/renumber
 - [ ] 7.4 Filtered base: reorder visible set only; hidden notes unchanged
 - [ ] 7.5 Disable plugin; confirm frontmatter persists and Bases still sorts by property
-- [ ] 7.6 **Mobile** (or touch emulation): whole-item reorder with long-press; tap still opens note; no handles
+- [ ] 7.6 **Mobile**: reorder toggle **on** — reorder works (vertical-first if needed); toggle **off** — sidebars swipe normally; tap opens note; toolbar toggle visible next to sort
+- [ ] 7.8 **Reorder toggle desktop**: button **immediately before Trier/Sort** (not far-left); default on; off disables DnD; on re-enables when sort eligible

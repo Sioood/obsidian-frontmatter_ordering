@@ -6,12 +6,17 @@ Exposes user configuration and explicit commands to initialize, normalize, and r
 
 ### Requirement: Settings tab
 
-The plugin MUST provide a settings tab under **Settings → Community plugins** with at least: order property name, sort direction default (for commands and comparison—not a gate on Bases drag eligibility), missing-order placement, tie-breaker field, and whether to show hints when Bases is not sorted by order.
+The plugin MUST provide a settings tab under **Settings → Community plugins** with at least: order property name, sort direction default (for commands and comparison—not a gate on Bases drag eligibility), **default Bases reorder mode** (boolean, default **on**—initial state of the toolbar toggle when a Bases view is attached), missing-order placement, tie-breaker field, and whether to show hints when Bases is not sorted by order.
 
 #### Scenario: Change property name
 
 - **WHEN** the user changes the order property name and saves settings
 - **THEN** subsequent operations use the new name without requiring a vault restart
+
+#### Scenario: Default reorder mode off
+
+- **WHEN** the user sets **default Bases reorder mode** to off and opens a Bases view
+- **THEN** the toolbar reorder toggle starts **off** until the user turns it on
 
 ### Requirement: Fill missing order command
 
