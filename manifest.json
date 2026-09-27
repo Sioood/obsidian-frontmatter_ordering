@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-frontmatter_ordering",
 	"name": "Frontmatter Ordering",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"minAppVersion": "1.10.0",
 	"description": "Sort notes with a frontmatter order property; drag to reorder in Bases views.",
 	"author": "Sioood",
