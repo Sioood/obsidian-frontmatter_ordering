@@ -7,7 +7,7 @@ Obsidian community plugin that stores note sort order in frontmatter (default pr
 1. Enable **Bases** (core plugin) and this plugin in **Settings → Community plugins**.
 2. Add a **number** property (e.g. `order`) to your Base property list.
 3. In each Bases view, set **Sort** to `order` **ascending** or **descending** (drag-reorder follows the view’s sort direction).
-4. **Drag to reorder:** use the **arrow reorder toggle** in the Bases toolbar (next to sort). Default is **on**. In **table** views, drag from the **file/name column**; in **list** and **gallery**, drag the whole row or card. Turn reorder **off** on mobile to swipe vault/file sidebars normally. A **colored insertion line** shows the drop position.
+4. **Drag to reorder:** use the **arrow reorder toggle** in the Bases toolbar (next to sort). Default is **on** (**grab mode**). In **table** views, drag from the **file/name column**; in **list** and **gallery**, drag the whole row or card. On mobile, grab mode **blocks** the item menu and sidebar swipes—turn reorder **off** to use them. A **colored insertion line** shows the drop position.
 
 Order values are **integers** `1`, `2`, `3`, … in the visible scope after a drag or renumber command. Order lives only in note YAML—not in `.base` files.
 
@@ -32,12 +32,12 @@ Order values are **integers** `1`, `2`, `3`, … in the visible scope after a dr
 ## Interaction notes
 
 - **Desktop:** Bases reorder uses **Pragmatic drag and drop** (HTML5 DnD).
-- **Mobile / touch:** reorder uses **pointer tracking** (hold, then move)—HTML5 drag alone is unreliable in Obsidian’s mobile app.
-- **Toolbar reorder toggle** (desktop and mobile): on = drag reorder when sort matches; off = no drag (sidebars swipe normally on mobile).
+- **Mobile / touch:** reorder uses **pointer tracking** (move right away to drag)—HTML5 drag alone is unreliable in Obsidian’s mobile app.
+- **Toolbar reorder toggle** (desktop and mobile): **on** = grab mode (drag when sort matches; blocks mobile item menu and sidebar swipes); **off** = normal Obsidian gestures.
 - **Table:** drag from the name/title column only. **List/gallery:** whole-item drag (no separate grip).
 - **Link drag** from Bases/Obsidian is suppressed on eligible items; use click/tap to open notes.
 - **Grouped** Bases: reorder within one group only.
-- **Touch:** **press and hold without moving** to use Obsidian’s item menu; **press, hold, then drag** to reorder (the insertion line follows your finger). After a successful reorder, the menu should not open on release.
+- **Touch:** **move immediately** to start reorder (small movement threshold). **Grab mode on** blocks the item menu and sidebar swipes—including press-and-hold without moving. Turn reorder **off** for the menu and sidebars. The insertion line appears only after drag starts.
 
 ## Limitations
 

@@ -91,8 +91,17 @@
 - [x] 10.3 Desktop — keep PdD `draggable` path; touch path does not break mouse reorder
 - [x] 10.4 After touch drop: suppress `click` + `contextmenu` briefly; do not block completing `pointerup` for drop commit
 - [x] 10.5 Review `touch-action` / `.frontmatter-ordering-reorder-armed` — avoid blocking touch drag at rest; `touch-action: none` only on actively dragged item if needed
-- [x] 10.6 README — mobile: hold still for menu, hold and move to reorder
+- [x] 10.6 README — mobile: hold still for menu, hold and move to reorder (superseded by **§10.8** copy)
 - [ ] 10.7 Manual **§7.6** on iOS/Android + desktop regression **§7.1–7.2**
+
+## 10.8 Mobile grab mode (instant drag + block menu/sidebars)
+
+- [x] 10.8.1 Touch drag starts on **movement threshold only** — remove long-press delay from `canStartTouchReorderDrag`; match desktop immediacy
+- [x] 10.8.2 Show insertion indicator **only** after drag commits (fix flicker without drop)
+- [x] 10.8.3 While reorder **armed + eligible**: block mobile **item menu** (`contextmenu` / long-press) on reorderable items, including hold-without-move
+- [x] 10.8.4 While armed: strengthen **sidebar edge-swipe** blocking on `.bases-view` (touch-action / capture) without breaking vertical scroll
+- [x] 10.8.5 README + toggle tooltip — grab mode blocks menu/sidebars; turn reorder **off** to use them
+- [ ] 10.8.6 Re-run **§7.6** after apply
 
 ## 7. Manual test plan (UI — apply verification)
 
@@ -102,5 +111,5 @@
 - [ ] 7.3 Manual edit `order` in source mode; confirm sort updates without plugin overwrite until next drag/renumber
 - [ ] 7.4 Filtered base: reorder visible set only; hidden notes unchanged
 - [ ] 7.5 Disable plugin; confirm frontmatter persists and Bases still sorts by property
-- [ ] 7.6 **Mobile**: toggle **on** — **hold + move** reorders (item actually moves, order updates); **hold still** opens mobile menu, no reorder; tap opens note; no menu after successful drop; toggle **off** — sidebars swipe normally
+- [ ] 7.6 **Mobile**: toggle **on** — **immediate move** reorders (no long-press wait); no indicator flicker on aborted gesture; **hold still** does **not** open menu or sidebars; tap opens note; toggle **off** — menu and sidebars normal
 - [ ] 7.8 **Reorder toggle desktop**: button **immediately before Trier/Sort** (not far-left); default on; off disables DnD; on re-enables when sort eligible

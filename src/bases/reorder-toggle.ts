@@ -155,8 +155,8 @@ function updateToggleUi(button: HTMLButtonElement, armed: boolean): void {
 	button.toggleAttribute('data-frontmatter-ordering-armed', armed);
 	button.classList.toggle('is-active', armed);
 	button.dataset.tooltip = armed
-		? 'Drag to reorder (on). Turn off to swipe sidebars on mobile.'
-		: 'Drag to reorder (off). Turn on to reorder notes.';
+		? 'Grab mode (on): drag to reorder. Blocks mobile item menu and sidebar swipes—turn off to use them.'
+		: 'Grab mode (off): mobile item menu and sidebar swipes work normally. Turn on to reorder.';
 }
 
 export function setReorderArmedSurface(

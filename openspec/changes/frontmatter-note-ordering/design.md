@@ -101,7 +101,7 @@ Unchanged: discovery, eligibility (`getSort()`), `assign` renumber, `view-intern
 
 - Apply **`touch-action`** (e.g. `pan-y` on list/gallery/table body) and/or **capture-phase touch/pointer** handling on the Bases **view container** so horizontal drags on items prioritize reorder over **sidebar edge-swipe** where the platform allows—without breaking vertical scroll.
 - When toggle is **OFF**, remove those styles/listeners so Obsidian sidebar gestures behave normally.
-- Document in README: turn reorder **off** to swipe sidebars freely; turn **on** to reorder (may require starting with a **vertical** move on some devices).
+- Document in README: turn reorder **off** for mobile item menu and sidebar swipes; turn **on** for reorder (**grab mode**).
 
 **Module layout addition:**
 
@@ -116,29 +116,29 @@ src/bases/
 - Always-on reorder with no toggle — **rejected** (mobile sidebar conflict).
 - Vertical-only drag lock before horizontal — **optional enhancement**; toggle is primary UX.
 
-### 3c. Mobile touch: long-press vs drag (hybrid with PdD)
+### 3c. Mobile touch: grab mode + pointer reorder (hybrid with PdD)
 
-**Observed failure (mobile):** With reorder armed, items **opacity** changes but **do not move**; on release Obsidian opens the **mobile context / item menu**. HTML5 drag via Pragmatic drag and drop alone is **unreliable** in Obsidian’s mobile WebView (touch drag often does not produce a real drop).
+**Observed failure (mobile):** PdD-only touch drag fails (opacity, no move, menu on release). First pointer-gated build still allowed **long-press + move**, which **flickered** the insertion indicator without committing when the user did not move **immediately**; **sidebars** and the **mobile item menu** still fired while reorder was armed.
 
-**Target behavior (reorder toggle ON + eligible):**
+**Target behavior (reorder toggle ON + eligible = “grab mode”):**
 
 | Gesture | Outcome |
 |---------|---------|
-| **Press and hold, little or no movement, release** | **No reorder.** Obsidian/Bases default: mobile item menu, tap-to-open, or scroll—plugin does **not** block `contextmenu` or long-press. |
-| **Press, hold past short delay, then move** past movement threshold | **Reorder drag** starts: insertion indicator tracks pointer; drop renumbers; **no** mobile menu on that release. |
-| **Short tap** | Open note / default activation (unchanged). |
+| **Short tap** | Open note (unchanged); no reorder. |
+| **Press and move** past a **small movement threshold** (≈ desktop, **no long-press delay**) | Reorder drag starts **immediately**; indicator tracks pointer; drop renumbers. |
+| **Press and hold with little or no movement** | **No reorder.** **No** mobile item menu and **no** sidebar edge gestures from the Bases surface—grab mode **blocks** them. User turns reorder **off** for menu/sidebars. |
+| **Partial move then release** without crossing threshold | **No** indicator flicker: do not show insertion line until drag is **committed** (threshold crossed). |
 
 **Implementation direction (apply):**
 
-- **Desktop** (`pointerType === 'mouse'` or fine pointer): keep **PdD** `draggable` / `dropTargetForElements` as today.
-- **Touch:** do **not** depend on native HTML5 drag starting from first `touchstart`. Use a **touch gesture controller** (can live in `reorder-controller.ts` or `touch-reorder.ts`) that:
-  - Listens on reorderable items when armed.
-  - On `pointerdown`/`touchstart`: record origin; **do not** call `preventDefault` until reorder is committed.
-  - If movement &lt; threshold before timeout → on `pointerup`, **do nothing** (menu may show).
-  - If movement ≥ threshold (or long-press + move): set **dragging** state, drive indicator + drop index via existing `resolveDropPlacement` / `assign` (same as pre-PdD pointer path); optionally call PdD only on desktop.
-  - On successful touch reorder end: suppress **synthetic `click`** and **`contextmenu`** briefly so release does not open the menu.
-- Revisit **`touch-action: pan-y`** on armed surfaces: must not block touch reorder once gesture is locked; apply stricter `touch-action: none` **only on the dragged item** during active reorder, not the whole view at rest.
-- **Table (mobile):** same name-column rule; long-press on name cell then move.
+- **Desktop:** keep **PdD** as today.
+- **Touch:** pointer path in `touch-reorder.ts` / `reorder-controller.ts`:
+  - Start drag on **movement ≥ threshold only** (remove long-press gate for `canStartTouchReorderDrag`).
+  - Show insertion indicator **only after** `dragging === true`.
+  - While **armed + eligible**, on reorderable items (or armed `.bases-view`): **capture** `pointerdown` / `touchstart` and block **`contextmenu`**, long-press menu, and **horizontal edge-swipe** handlers where possible (`preventDefault` on touch after down on item, `touch-action: none` or `pan-y` + edge capture on armed surface).
+  - During active drag and briefly after drop: suppress **`click`** / **`contextmenu`** as today.
+- **Trade-off:** grab mode prioritizes reorder over Obsidian chrome; toggle **off** restores menu and sidebars (document in README/tooltip).
+- **Table (mobile):** name column only; same instant-move threshold.
 
 **Alternatives (DnD engine):**
 
@@ -167,20 +167,21 @@ Remove or stop shipping `drag-handle.ts` and **`fallback-view.ts`** (ordered lis
 - **[Link vs drag]** → PdD element adapter + conditional `canDrag`; keep link `dragstart` guards if Obsidian still wins; re-test table name column and gallery cards.
 - **[Bundle size]** → PdD core is small; only import optional packages used; tree-shake via esbuild.
 - **[Table row DOM]** → Keep `.bases-tbody .bases-tr` selectors from 4.13.
-- **[Mobile sidebar swipe vs reorder]** → Reorder toggle + nuanced `touch-action`; pointer-gated touch reorder (§3c).
-- **[Mobile menu vs reorder]** → Hold-without-move passes through; move-threshold reorder suppresses menu on drop (§3c).
+- **[Mobile sidebar swipe vs reorder]** → Grab mode blocks edge swipes on armed Bases surface; toggle off restores (§3c).
+- **[Mobile menu vs reorder]** → Grab mode blocks item menu on hold; toggle off restores; instant-move drag (§3c).
+- **[Indicator flicker]** → No insertion UI until movement threshold commits drag (§3c).
 - **[Grouped bases / multi-file writes]** → Unchanged.
 
 ## Migration Plan
 
 1. Update artifacts (this change).
-2. **`/opsx-apply`**: §10 mobile touch reorder (hybrid); re-verify §7 / §9 manual QA; README.
+2. **`/opsx-apply`**: §10.8 grab-mode gesture hardening; re-verify §7 / §9 manual QA; README.
 3. Renumber command for legacy `order` values if needed.
 
 ## Open Questions
 
 - Which PdD optional packages to adopt (hitbox vs fully custom indicator positioning).
 - Exact Bases toolbar DOM hook for sort-adjacent toggle (validate per Obsidian version).
-- Exact long-press delay and move threshold (ms / px) for touch vs mouse.
-- Whether Obsidian mobile menu is `contextmenu` or custom long-press (detect in dev-obsidian on device).
+- Exact move threshold (px) on touch vs mouse; whether touch matches desktop `MOVE_THRESHOLD_PX`.
+- Best capture target for blocking Obsidian mobile menu (item vs `.bases-view` vs document capture).
 - Whether Bases resets DOM attributes on refresh (re-register PdD adapters on observer sync).

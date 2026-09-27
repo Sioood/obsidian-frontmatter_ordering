@@ -78,9 +78,14 @@
 	position: relative;
 }
 
-/* Reorder armed: limit horizontal overscroll (sidebar swipes); touch reorder uses pointer path */
+/* Grab mode: vertical scroll only on the view surface; contain horizontal overscroll (sidebars) */
 .bases-view.frontmatter-ordering-reorder-armed {
+	touch-action: pan-y;
 	overscroll-behavior-x: contain;
+}
+
+.bases-view.frontmatter-ordering-reorder-armed .frontmatter-ordering-item {
+	touch-action: none;
 }
 
 .frontmatter-ordering-reorder-toggle-wrap {

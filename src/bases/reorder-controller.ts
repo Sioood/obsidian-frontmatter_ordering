@@ -97,6 +97,9 @@ export class BasesReorderController {
 	private indicatorRaf = 0;
 	private pendingIndicatorCoords: { x: number; y: number } | null = null;
 	private tableDragGuardsActive = false;
+	private touchGrabMenuBlocker: ((evt: Event) => void) | null = null;
+	private touchGrabBlockItemEl: HTMLElement | null = null;
+	private touchGrabBlockContainerEl: HTMLElement | null = null;
 
 	constructor(
 		private app: App,
@@ -405,6 +408,45 @@ export class BasesReorderController {
 		this.beginTouchGesture(ctx, source, evt);
 	}
 
+	private readonly blockTouchGrabMenu = (evt: Event): void => {
+		evt.preventDefault();
+		evt.stopPropagation();
+		evt.stopImmediatePropagation();
+	};
+
+	private attachTouchGrabMenuBlock(
+		itemEl: HTMLElement,
+		containerEl: HTMLElement,
+	): void {
+		this.detachTouchGrabMenuBlock();
+		this.touchGrabMenuBlocker = this.blockTouchGrabMenu;
+		this.touchGrabBlockItemEl = itemEl;
+		this.touchGrabBlockContainerEl = containerEl;
+		const opts: AddEventListenerOptions = { capture: true };
+		itemEl.addEventListener('contextmenu', this.blockTouchGrabMenu, opts);
+		containerEl.addEventListener('contextmenu', this.blockTouchGrabMenu, opts);
+	}
+
+	private detachTouchGrabMenuBlock(): void {
+		if (!this.touchGrabMenuBlocker) {
+			return;
+		}
+		const opts: EventListenerOptions = { capture: true };
+		this.touchGrabBlockItemEl?.removeEventListener(
+			'contextmenu',
+			this.touchGrabMenuBlocker,
+			opts,
+		);
+		this.touchGrabBlockContainerEl?.removeEventListener(
+			'contextmenu',
+			this.touchGrabMenuBlocker,
+			opts,
+		);
+		this.touchGrabMenuBlocker = null;
+		this.touchGrabBlockItemEl = null;
+		this.touchGrabBlockContainerEl = null;
+	}
+
 	private beginTouchGesture(
 		ctx: ContainerContext,
 		source: ResolvedBasesItem,
@@ -413,6 +455,9 @@ export class BasesReorderController {
 		if (this.touchGesture) {
 			return;
 		}
+		evt.preventDefault();
+		evt.stopPropagation();
+		this.attachTouchGrabMenuBlock(source.itemEl, ctx.containerEl);
 		this.touchGesture = {
 			container: ctx,
 			source,
@@ -443,12 +488,8 @@ export class BasesReorderController {
 		const dx = evt.clientX - gesture.startX;
 		const dy = evt.clientY - gesture.startY;
 		const dist = Math.hypot(dx, dy);
-		const elapsed = Date.now() - gesture.startedAt;
 
-		if (
-			!gesture.dragging &&
-			canStartTouchReorderDrag(elapsed, dist)
-		) {
+		if (!gesture.dragging && canStartTouchReorderDrag(dist)) {
 			gesture.dragging = true;
 			this.activeDrag = {
 				container: gesture.container,
@@ -505,13 +546,20 @@ export class BasesReorderController {
 			evt.stopPropagation();
 			this.refreshTouchGestureContext(gesture);
 			await this.commitActiveDrag(evt.clientX, evt.clientY);
+		} else {
+			evt.preventDefault();
+			evt.stopPropagation();
+			this.extendClickSuppression();
+			this.scheduleClickSwallowOnContainer(gesture.container.containerEl);
 		}
 
+		this.detachTouchGrabMenuBlock();
 		this.touchGesture = null;
 	}
 
 	private endTouchGesture(): void {
 		if (!this.touchGesture) {
+			this.detachTouchGrabMenuBlock();
 			return;
 		}
 		const gesture = this.touchGesture;
@@ -520,6 +568,7 @@ export class BasesReorderController {
 		} catch {
 			/* ignore */
 		}
+		this.detachTouchGrabMenuBlock();
 		this.touchGesture = null;
 		if (gesture.dragging) {
 			this.endActiveDrag();

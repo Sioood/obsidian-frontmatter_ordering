@@ -72,13 +72,14 @@ The plugin MUST provide a **toggle control** in the active Bases view toolbar on
 
 ### Requirement: Mobile sidebar swipe coexistence when reorder is armed
 
-When reorder mode is **on** and the view is sort-eligible, the plugin MUST apply gesture handling on the Bases view container so **reorder drags** (especially on list/gallery) do not trivially trigger Obsidian **left/right sidebar** edge swipes. When reorder mode is **off**, the plugin MUST NOT apply that handling.
+When reorder mode is **on** and the view is sort-eligible, the plugin MUST **block or absorb** Obsidian **left/right sidebar** edge-swipe gestures on the Bases view surface so they do not open while the user is reordering or pressing on reorderable items. When reorder mode is **off**, the plugin MUST NOT apply that handling.
 
 #### Scenario: Reorder armed on mobile
 
 - **WHEN** the user has reorder mode **on** on a touch device in an eligible view
-- **THEN** the user can reorder after a primarily **vertical** engagement or other documented gesture without the first horizontal move opening a sidebar
+- **THEN** horizontal edge swipes from the Bases view do **not** open vault/file sidebars while grab mode is active
 - **AND** vertical scrolling within the Bases view still works
+- **AND** the user can start reorder with a **small immediate move** (no long-press delay required)
 
 #### Scenario: Sidebars when reorder off
 
@@ -247,19 +248,26 @@ When reorder mode is on and the view is eligible, the plugin MUST support **work
 
 #### Scenario: Touch drag on phone or tablet
 
-- **WHEN** the user **presses, holds, then moves** an item past the movement threshold in an eligible armed view
-- **THEN** the item follows the gesture, the insertion indicator updates, and frontmatter order updates on release like desktop
+- **WHEN** the user **presses and moves** an item past the movement threshold in an eligible armed view **without** waiting for a long-press delay
+- **THEN** reorder drag starts promptly, the insertion indicator updates, and frontmatter order updates on release like desktop
 - **AND** the Obsidian **mobile item menu does not open** on that completing release
 
-#### Scenario: Long press without move opens menu
+#### Scenario: No indicator flicker before drag commits
 
-- **WHEN** the user **presses and holds** on a reorderable item **without** moving past the reorder threshold
+- **WHEN** the user moves slightly but **does not** cross the reorder movement threshold and releases
+- **THEN** the insertion indicator does **not** flash or appear
+- **AND** no partial reorder state is left active
+
+#### Scenario: Grab mode blocks menu on hold
+
+- **WHEN** reorder mode is **on** and the user **presses and holds** on a reorderable item **without** crossing the movement threshold
 - **THEN** the plugin does **not** start a reorder drag
-- **AND** Obsidian/Bases **default long-press behavior** applies (e.g. mobile context menu) on release
+- **AND** the Obsidian/Bases **mobile item menu does not open** on release
+- **AND** the user can turn reorder **off** to access the item menu again
 
 #### Scenario: Short tap still opens note
 
-- **WHEN** the user taps without holding long enough or moving enough to start reorder
+- **WHEN** the user taps without moving enough to start reorder
 - **THEN** normal tap-to-open / scroll behavior is preserved
 
 #### Scenario: Desktop uses PdD
