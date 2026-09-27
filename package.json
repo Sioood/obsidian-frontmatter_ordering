@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "obsidian-frontmatter_ordering",
+	"version": "0.2.0",
+	"description": "Sort notes with a frontmatter order property; drag to reorder in Bases views.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
