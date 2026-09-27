@@ -71,7 +71,7 @@
 - [x] 8.6 Insertion indicator via `resolveDropPlacement` on `onDrag` (reuse `dom-targets` geometry); no transition on marker
 - [x] 8.7 Post-drop click suppression and table selection suppression during drag (parity with §4.21–4.22)
 - [x] 8.8 `npm run build` (production bundle includes PdD); reload in `dev-obsidian` for smoke test
-- [ ] 8.9 Re-run manual **§7** (especially 7.1, 7.2, 7.6 touch) after migration
+- [ ] 8.9 Re-run manual **§7** (especially 7.1, 7.2, 7.6 touch) after **§10** mobile fix
 
 ## 9. Bases reorder mode toggle (mobile sidebar coexistence)
 
@@ -84,6 +84,16 @@
 - [x] 9.6 Update `README.md` — reorder toggle, default on, turn off for sidebar swipes on mobile
 - [x] 9.7 `npm run build`; manual **§7.6** and **§9** on touch device (build done; manual QA pending)
 
+## 10. Mobile touch reorder (hybrid: PdD desktop + pointer gate on touch)
+
+- [x] 10.1 Reproduce on device: opacity-only drag + menu on release; document Obsidian event order (`contextmenu`, `pointerup`)
+- [x] 10.2 Touch gesture gate — hold without move → no `preventDefault`; pass through to mobile menu; move ≥ threshold → start reorder (pointer-driven indicator + `assign`, not PdD-only)
+- [x] 10.3 Desktop — keep PdD `draggable` path; touch path does not break mouse reorder
+- [x] 10.4 After touch drop: suppress `click` + `contextmenu` briefly; do not block completing `pointerup` for drop commit
+- [x] 10.5 Review `touch-action` / `.frontmatter-ordering-reorder-armed` — avoid blocking touch drag at rest; `touch-action: none` only on actively dragged item if needed
+- [x] 10.6 README — mobile: hold still for menu, hold and move to reorder
+- [ ] 10.7 Manual **§7.6** on iOS/Android + desktop regression **§7.1–7.2**
+
 ## 7. Manual test plan (UI — apply verification)
 
 - [ ] 7.1 Bases **table**: drag from **name/title column** reorders; **no** plugin handle; link drag does not steal gesture; **click name cell opens note**; **click property cell edits inline** without starting reorder; **no false multi-select highlight** except during an active drag; integers match display order after drop (**ASC** and **DESC** per view sort); **virtualized** rows update the correct files
@@ -92,5 +102,5 @@
 - [ ] 7.3 Manual edit `order` in source mode; confirm sort updates without plugin overwrite until next drag/renumber
 - [ ] 7.4 Filtered base: reorder visible set only; hidden notes unchanged
 - [ ] 7.5 Disable plugin; confirm frontmatter persists and Bases still sorts by property
-- [ ] 7.6 **Mobile**: reorder toggle **on** — reorder works (vertical-first if needed); toggle **off** — sidebars swipe normally; tap opens note; toolbar toggle visible next to sort
+- [ ] 7.6 **Mobile**: toggle **on** — **hold + move** reorders (item actually moves, order updates); **hold still** opens mobile menu, no reorder; tap opens note; no menu after successful drop; toggle **off** — sidebars swipe normally
 - [ ] 7.8 **Reorder toggle desktop**: button **immediately before Trier/Sort** (not far-left); default on; off disables DnD; on re-enables when sort eligible

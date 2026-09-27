@@ -13,6 +13,7 @@ import {
 	reorderSortDirectionFromConfig,
 } from './context';
 import {
+	applyLinkDragSuppression,
 	clearLinkDragSuppression,
 	findTableNameCellInRow,
 	itemSelectorForKind,
@@ -20,8 +21,13 @@ import {
 	type ResolvedBasesItem,
 	resolveBasesItem,
 	resolveDropPlacement,
+	shouldStartTableReorderPointer,
 	viewKindFromBasesView,
 } from './dom-targets';
+import {
+	canStartTouchReorderDrag,
+	useTouchPointerReorderPath,
+} from './touch-reorder';
 import {
 	isBasesReorderDragData,
 	registerBasesReorderItem,
@@ -58,6 +64,16 @@ interface ActiveDrag {
 	pendingSlot: number | null;
 }
 
+interface PendingTouchGesture {
+	container: ContainerContext;
+	source: ResolvedBasesItem;
+	pointerId: number;
+	startX: number;
+	startY: number;
+	startedAt: number;
+	dragging: boolean;
+}
+
 export class BasesReorderController {
 	private readonly containerObservers = new WeakMap<
 		HTMLElement,
@@ -71,6 +87,7 @@ export class BasesReorderController {
 	private readonly reorderToggles = new Map<HTMLElement, ReorderToggleHandle>();
 	private debounceTimer: number | null = null;
 	private activeDrag: ActiveDrag | null = null;
+	private touchGesture: PendingTouchGesture | null = null;
 	private insertIndicatorEl: HTMLElement | null = null;
 	private suppressClickUntil = 0;
 	private clickSuppressBlockersActive = false;
@@ -95,6 +112,7 @@ export class BasesReorderController {
 		this.detachTableDragGuards();
 		this.removeDragOverlay();
 		this.deactivateReorderActiveContainer();
+		this.endTouchGesture();
 		this.endActiveDrag();
 		for (const handle of this.reorderToggles.values()) {
 			handle.dispose();
@@ -276,6 +294,14 @@ export class BasesReorderController {
 			{ capture: true },
 		);
 
+		if (useTouchPointerReorderPath()) {
+			containerEl.addEventListener(
+				'pointerdown',
+				(evt) => this.onContainerPointerDown(containerEl, evt),
+				{ capture: true },
+			);
+		}
+
 		const monitorCleanup = monitorForElements({
 			canMonitor: ({ source }) => isBasesReorderDragData(source.data),
 			onDragStart: ({ source }) => {
@@ -323,6 +349,181 @@ export class BasesReorderController {
 			},
 		});
 		this.containerMonitors.set(containerEl, monitorCleanup);
+	}
+
+	private refreshTouchGestureContext(gesture: PendingTouchGesture): void {
+		const fresh = this.contextForContainer(gesture.container.containerEl);
+		if (fresh) {
+			gesture.container = fresh;
+		}
+	}
+
+	private onContainerPointerDown(
+		containerEl: HTMLElement,
+		evt: PointerEvent,
+	): void {
+		if (evt.pointerType !== 'touch' && evt.pointerType !== 'pen') {
+			return;
+		}
+		if (this.touchGesture || this.activeDrag) {
+			return;
+		}
+		const ctx = this.contextForContainer(containerEl);
+		if (!ctx) {
+			return;
+		}
+		this.ensureViewSynced(ctx);
+		if (!this.isReorderArmed(containerEl)) {
+			return;
+		}
+		if (!isSortEligibleForReorder(ctx.config, this.getSettings())) {
+			return;
+		}
+		if (!(evt.target instanceof HTMLElement)) {
+			return;
+		}
+		const kind = viewKindFromBasesView(ctx.basesView);
+		const itemEl = evt.target.closest<HTMLElement>(
+			itemSelectorForKind(kind),
+		);
+		if (!itemEl || !ctx.containerEl.contains(itemEl)) {
+			return;
+		}
+		if (!itemEl.classList.contains('frontmatter-ordering-item')) {
+			return;
+		}
+		const source = resolveBasesItem(ctx.containerEl, ctx.basesView, itemEl);
+		if (!source) {
+			return;
+		}
+		if (
+			kind === 'table' &&
+			!shouldStartTableReorderPointer(evt, itemEl)
+		) {
+			return;
+		}
+		this.beginTouchGesture(ctx, source, evt);
+	}
+
+	private beginTouchGesture(
+		ctx: ContainerContext,
+		source: ResolvedBasesItem,
+		evt: PointerEvent,
+	): void {
+		if (this.touchGesture) {
+			return;
+		}
+		this.touchGesture = {
+			container: ctx,
+			source,
+			pointerId: evt.pointerId,
+			startX: evt.clientX,
+			startY: evt.clientY,
+			startedAt: Date.now(),
+			dragging: false,
+		};
+
+		const onMove = (e: PointerEvent) => this.onTouchPointerMove(e);
+		const onUp = (e: PointerEvent) => {
+			void this.onTouchPointerUp(e);
+			document.removeEventListener('pointermove', onMove, true);
+			document.removeEventListener('pointerup', onUp, true);
+			document.removeEventListener('pointercancel', onUp, true);
+		};
+		document.addEventListener('pointermove', onMove, true);
+		document.addEventListener('pointerup', onUp, true);
+		document.addEventListener('pointercancel', onUp, true);
+	}
+
+	private onTouchPointerMove(evt: PointerEvent): void {
+		const gesture = this.touchGesture;
+		if (!gesture || evt.pointerId !== gesture.pointerId) {
+			return;
+		}
+		const dx = evt.clientX - gesture.startX;
+		const dy = evt.clientY - gesture.startY;
+		const dist = Math.hypot(dx, dy);
+		const elapsed = Date.now() - gesture.startedAt;
+
+		if (
+			!gesture.dragging &&
+			canStartTouchReorderDrag(elapsed, dist)
+		) {
+			gesture.dragging = true;
+			this.activeDrag = {
+				container: gesture.container,
+				source: gesture.source,
+				pendingInsertIndex: null,
+				pendingSlot: null,
+			};
+			this.extendClickSuppression();
+			this.setReorderActive(gesture.container.containerEl, true);
+			this.clearDomSelection();
+			if (
+				viewKindFromBasesView(gesture.container.basesView) === 'table'
+			) {
+				this.attachTableDragGuards(gesture.container.containerEl);
+			}
+			gesture.source.itemEl.classList.add(DRAGGING_CLASS);
+			try {
+				gesture.source.itemEl.setPointerCapture(evt.pointerId);
+			} catch {
+				/* ignore */
+			}
+			evt.preventDefault();
+			evt.stopPropagation();
+		}
+		if (!gesture.dragging || !this.activeDrag) {
+			return;
+		}
+		evt.preventDefault();
+		evt.stopPropagation();
+		this.clearDomSelection();
+		this.scheduleInsertIndicatorUpdate(
+			this.activeDrag,
+			evt.clientX,
+			evt.clientY,
+		);
+	}
+
+	private async onTouchPointerUp(evt: PointerEvent): Promise<void> {
+		const gesture = this.touchGesture;
+		if (!gesture || evt.pointerId !== gesture.pointerId) {
+			return;
+		}
+
+		try {
+			gesture.source.itemEl.releasePointerCapture(evt.pointerId);
+		} catch {
+			/* ignore */
+		}
+
+		const hadDrag = gesture.dragging;
+
+		if (hadDrag && this.activeDrag) {
+			evt.preventDefault();
+			evt.stopPropagation();
+			this.refreshTouchGestureContext(gesture);
+			await this.commitActiveDrag(evt.clientX, evt.clientY);
+		}
+
+		this.touchGesture = null;
+	}
+
+	private endTouchGesture(): void {
+		if (!this.touchGesture) {
+			return;
+		}
+		const gesture = this.touchGesture;
+		try {
+			gesture.source.itemEl.releasePointerCapture(gesture.pointerId);
+		} catch {
+			/* ignore */
+		}
+		this.touchGesture = null;
+		if (gesture.dragging) {
+			this.endActiveDrag();
+		}
 	}
 
 	private onContainerDragStart(
@@ -403,7 +604,7 @@ export class BasesReorderController {
 			return;
 		}
 		const observer = new MutationObserver((records) => {
-			if (this.activeDrag) {
+			if (this.activeDrag || this.touchGesture) {
 				return;
 			}
 			if (!records.some((record) => this.isRelevantMutation(record))) {
@@ -460,7 +661,7 @@ export class BasesReorderController {
 	}
 
 	private syncReorderableItems(ctx: ContainerContext): void {
-		if (this.activeDrag) {
+		if (this.activeDrag || this.touchGesture) {
 			return;
 		}
 		const eligible = isSortEligibleForReorder(
@@ -486,6 +687,7 @@ export class BasesReorderController {
 			});
 
 		const bag = this.registrationBag(ctx.containerEl);
+		const touchPath = useTouchPointerReorderPath();
 
 		ctx.containerEl.querySelectorAll<HTMLElement>(selector).forEach((itemEl) => {
 			const resolved = resolveBasesItem(
@@ -501,6 +703,17 @@ export class BasesReorderController {
 			}
 			itemEl.classList.add('frontmatter-ordering-item');
 			setCachedItemFilePath(itemEl, resolved.file.path);
+
+			if (touchPath) {
+				applyLinkDragSuppression(itemEl);
+				if (kind === 'table' && !findTableNameCellInRow(itemEl)) {
+					itemEl.classList.remove('frontmatter-ordering-item');
+					clearCachedItemFilePath(itemEl);
+					clearLinkDragSuppression(itemEl);
+				}
+				return;
+			}
+
 			clearLinkDragSuppression(itemEl);
 
 			const dragHandle =
@@ -552,7 +765,9 @@ export class BasesReorderController {
 
 	private shouldBlockNavigation(): boolean {
 		return (
-			this.activeDrag !== null || Date.now() < this.suppressClickUntil
+			this.activeDrag !== null ||
+			this.touchGesture?.dragging === true ||
+			Date.now() < this.suppressClickUntil
 		);
 	}
 
@@ -573,6 +788,7 @@ export class BasesReorderController {
 		const opts: AddEventListenerOptions = { capture: true };
 		document.addEventListener('click', this.blockNavigationEvent, opts);
 		document.addEventListener('auxclick', this.blockNavigationEvent, opts);
+		document.addEventListener('contextmenu', this.blockNavigationEvent, opts);
 	}
 
 	private detachClickSuppressBlockers(): void {
@@ -584,6 +800,11 @@ export class BasesReorderController {
 		document.removeEventListener('click', this.blockNavigationEvent, opts);
 		document.removeEventListener(
 			'auxclick',
+			this.blockNavigationEvent,
+			opts,
+		);
+		document.removeEventListener(
+			'contextmenu',
 			this.blockNavigationEvent,
 			opts,
 		);

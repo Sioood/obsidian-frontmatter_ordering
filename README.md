@@ -31,12 +31,13 @@ Order values are **integers** `1`, `2`, `3`, … in the visible scope after a dr
 
 ## Interaction notes
 
-- Bases reorder uses **Pragmatic drag and drop** (HTML5 DnD adapters), not custom pointer tracking.
+- **Desktop:** Bases reorder uses **Pragmatic drag and drop** (HTML5 DnD).
+- **Mobile / touch:** reorder uses **pointer tracking** (hold, then move)—HTML5 drag alone is unreliable in Obsidian’s mobile app.
 - **Toolbar reorder toggle** (desktop and mobile): on = drag reorder when sort matches; off = no drag (sidebars swipe normally on mobile).
 - **Table:** drag from the name/title column only. **List/gallery:** whole-item drag (no separate grip).
 - **Link drag** from Bases/Obsidian is suppressed on eligible items; use click/tap to open notes.
 - **Grouped** Bases: reorder within one group only.
-- **Touch:** long-press briefly, then drag to reorder.
+- **Touch:** **press and hold without moving** to use Obsidian’s item menu; **press, hold, then drag** to reorder (the insertion line follows your finger). After a successful reorder, the menu should not open on release.
 
 ## Limitations
 

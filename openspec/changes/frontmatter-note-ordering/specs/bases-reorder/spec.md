@@ -243,12 +243,39 @@ When eligible, the plugin MUST support reorder via drag-and-drop in Bases **tabl
 
 ### Requirement: Mobile touch reorder
 
-When reorder mode is on and the view is eligible, the plugin MUST support whole-item reorder on touch devices using Pragmatic drag and drop with touch-safe handling. Users MAY need to engage vertically before horizontal reorder on some devices; the reorder toolbar toggle MUST be available to disarm reorder when sidebar swipes are preferred.
+When reorder mode is on and the view is eligible, the plugin MUST support **working** reorder on touch devices (list, gallery, and table name column). Relying on HTML5 drag alone is **not sufficient** where it fails to move items (e.g. opacity changes but position does not update).
 
 #### Scenario: Touch drag on phone or tablet
 
-- **WHEN** the user performs a reorder gesture on a touch device in an eligible view
-- **THEN** frontmatter order updates as on desktop without requiring a drag handle
+- **WHEN** the user **presses, holds, then moves** an item past the movement threshold in an eligible armed view
+- **THEN** the item follows the gesture, the insertion indicator updates, and frontmatter order updates on release like desktop
+- **AND** the Obsidian **mobile item menu does not open** on that completing release
+
+#### Scenario: Long press without move opens menu
+
+- **WHEN** the user **presses and holds** on a reorderable item **without** moving past the reorder threshold
+- **THEN** the plugin does **not** start a reorder drag
+- **AND** Obsidian/Bases **default long-press behavior** applies (e.g. mobile context menu) on release
+
+#### Scenario: Short tap still opens note
+
+- **WHEN** the user taps without holding long enough or moving enough to start reorder
+- **THEN** normal tap-to-open / scroll behavior is preserved
+
+#### Scenario: Desktop uses PdD
+
+- **WHEN** the user reorders with a mouse on desktop in an armed eligible view
+- **THEN** Pragmatic drag and drop (or equivalent) continues to drive reorder without requiring the touch-only gesture gate
+
+### Requirement: No spurious menu after touch drop
+
+When a touch reorder drag **completes successfully** (or commits at same index), the plugin MUST suppress synthetic **`click`** and **`contextmenu`** on the released item for a short window so the mobile menu does not open immediately after drop.
+
+#### Scenario: Drop does not open mobile menu
+
+- **WHEN** the user finishes a touch reorder drag and releases
+- **THEN** the menu does not appear as a side effect of the drop
+- **AND** a later separate tap can still open the note or menu as usual
 
 ### Requirement: Correct file mapping under virtualization
 
