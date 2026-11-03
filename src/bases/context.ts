@@ -71,11 +71,26 @@ export function primaryOrderSort(
 	const parsed = parsePropertyId(primary.property);
 	if (
 		parsed.type !== 'note' ||
-		parsed.name !== settings.orderPropertyName
+		!parsed.name.startsWith(settings.orderPropertyName)
 	) {
 		return null;
 	}
 	return primary;
+}
+
+/** Settings whose order property is the one the view sorts by (any name with the configured prefix). */
+export function viewScopedSettings(
+	config: BasesViewConfig,
+	settings: FrontmatterOrderingSettings,
+): FrontmatterOrderingSettings | null {
+	const primary = primaryOrderSort(config, settings);
+	if (!primary) {
+		return null;
+	}
+	return {
+		...settings,
+		orderPropertyName: parsePropertyId(primary.property).name,
+	};
 }
 
 export function sortDirectionFromBasesSort(
@@ -100,7 +115,7 @@ export function getBasesSortHintMessage(
 	settings: FrontmatterOrderingSettings,
 ): string {
 	const name = settings.orderPropertyName;
-	return `Sort by ${name} (ascending or descending) to drag-reorder.`;
+	return `Sort by ${name} or any ${name}* property (ascending or descending) to drag-reorder.`;
 }
 
 export function isSortEligibleForReorder(

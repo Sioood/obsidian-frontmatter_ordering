@@ -8,6 +8,7 @@ import {
 	getActiveBasesLeaf,
 	getBasesContextFromLeaf,
 	markdownEntriesFromResult,
+	viewScopedSettings,
 } from '../bases/context';
 import {
 	markdownFilesInFolder,
@@ -37,9 +38,10 @@ export async function fillMissingOrderInBasesView(
 		new Notice('Frontmatter ordering: focus a Bases view first.');
 		return;
 	}
+	const scoped = viewScopedSettings(ctx.config, settings) ?? settings;
 	const entries = markdownEntriesFromResult(ctx.basesView.data);
 	const files = filesFromEntries(entries);
-	await fillMissingOnFiles(app, settings, files);
+	await fillMissingOnFiles(app, scoped, files);
 }
 
 async function fillMissingOnFiles(

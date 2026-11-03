@@ -7,6 +7,7 @@ import {
 	getActiveBasesLeaf,
 	getBasesContextFromLeaf,
 	markdownEntriesFromResult,
+	viewScopedSettings,
 } from '../bases/context';
 import {
 	markdownFilesInFolder,
@@ -40,9 +41,10 @@ export async function renumberOrderInBasesView(
 		new Notice('Frontmatter ordering: focus a Bases view first.');
 		return;
 	}
+	const scoped = viewScopedSettings(ctx.config, settings) ?? settings;
 	const entries = markdownEntriesFromResult(ctx.basesView.data);
 	const files = filesFromEntries(entries);
-	await renumberScope(app, settings, files);
+	await renumberScope(app, scoped, files);
 }
 
 async function renumberScope(

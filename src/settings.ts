@@ -37,7 +37,7 @@ export class FrontmatterOrderingSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Order property name')
-			.setDesc('Frontmatter key used for sort order (default: order).')
+			.setDesc('Frontmatter key (or prefix) used for sort order. A view sorted by any property starting with it gets its own order (default: order).')
 			.addText((text) =>
 				text
 					.setPlaceholder('order')
