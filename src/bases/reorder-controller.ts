@@ -908,7 +908,7 @@ export class BasesReorderController {
 				'.bases-table-selection, .bases-table-active-cell',
 			)
 			.forEach((el) => {
-				el.style.setProperty('visibility', 'hidden');
+				el.setCssProps({ visibility: 'hidden' });
 				el.classList.remove('mod-selection');
 			});
 	}

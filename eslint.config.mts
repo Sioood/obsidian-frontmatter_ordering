@@ -10,6 +10,7 @@ export default defineConfig(
 		'version-bump.mjs',
 		'versions.json',
 		'main.js',
+		'app.js',
 		'package.json',
 		'package-lock.json',
 		'tsconfig.json',
